@@ -55,9 +55,8 @@ vercel env add ANTHROPIC_API_KEY production     # для питчей от Claud
 
 ## 5. Выкатка
 
-```bash
-vercel deploy --prod
-```
+Репозиторий https://github.com/qcom666/findwork связан с проектом Vercel: пуш в `main` сам выкатывает production, пуш в другую ветку или pull request даёт превью-деплой.
+Ручной запуск при необходимости: `vercel deploy --prod`.
 
 ## Обновление каталога заведений
 
