@@ -4,6 +4,8 @@
 нет баз данных, а на Vercel нельзя хранить SQLite-файлы (диск только для чтения). Поэтому обе базы переезжают в Turso
 (тот же SQLite-протокол, бесплатный тариф). Локально ничего не меняется: там по-прежнему файлы.
 
+Быстрый путь: `turso auth login`, затем `scripts/setup-prod.sh`. Скрипт сам создаёт базы, кладёт переменные в Vercel и выкатывает. Ниже то же вручную.
+
 ## 1. Базы в Turso
 
 ```bash
@@ -11,7 +13,8 @@ brew install tursodatabase/tap/turso
 turso auth login
 
 # каталог заведений: загружаем готовый файл, который собрал ingest/build_db.py
-turso db create findwork-leads --from-file data/leads.db
+turso db create findwork-leads
+SRC=data/leads.db DEST_URL=<url> DEST_TOKEN=<token> node scripts/push-leads.mjs   # --from-file в CLI не принимает наш файл
 # аккаунты, кредиты, платежи: пустая база, таблицы приложение создаст само
 turso db create findwork-app
 
@@ -21,7 +24,6 @@ turso db show findwork-app --url
 turso db tokens create findwork-app
 ```
 
-Если `--from-file` не принял файл, зальйте дамп: `sqlite3 data/leads.db .dump | turso db shell findwork-leads` (дольше, но работает).
 
 ## 2. Переменные окружения
 
@@ -60,4 +62,4 @@ vercel env add ANTHROPIC_API_KEY production     # для питчей от Claud
 
 ## Обновление каталога заведений
 
-Файл `leads.db` меняется при каждой пересборке. Не перезаписывайте рабочую базу: создайте новую (`turso db create findwork-leads-2 --from-file data/leads.db`), проверьте, поменяйте `LEADS_DB_URL` и `LEADS_DB_AUTH_TOKEN` и выкатите заново. Аккаунты лежат в другой базе и не затрагиваются, но идентификаторы лидов (`unlocks.lead_id`) берутся из Overture: после смены релиза часть старых идентификаторов может пропасть, и такие «открытые» лиды перестанут находиться.
+Файл `leads.db` меняется при каждой пересборке. Не перезаписывайте рабочую базу: создайте новую (`turso db create findwork-leads-2`, затем `scripts/push-leads.mjs`), проверьте, поменяйте `LEADS_DB_URL` и `LEADS_DB_AUTH_TOKEN` и выкатите заново. Аккаунты лежат в другой базе и не затрагиваются, но идентификаторы лидов (`unlocks.lead_id`) берутся из Overture: после смены релиза часть старых идентификаторов может пропасть, и такие «открытые» лиды перестанут находиться.
