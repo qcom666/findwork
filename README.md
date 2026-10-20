@@ -1,0 +1,59 @@
+# FindWork
+
+Лиды для фрилансеров: заведения России, которым нужен сайт, с оценкой потребности, проверкой сайта и готовым питчем.
+Данные только открытые (Overture Maps, OpenStreetMap), без платных лицензий. Подробнее: [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
+
+## Запуск
+
+Нужны Node 22+ и Python 3.9+.
+
+```bash
+# 1. база лидов
+python3 -m venv ingest/.venv
+ingest/.venv/bin/pip install -r ingest/requirements.txt
+ingest/.venv/bin/python ingest/overture.py        # ~2 мин, выгрузка России из Overture
+ingest/.venv/bin/python ingest/osm.py             # необязательно, долго: 15 городов через Overpass
+ingest/.venv/bin/python ingest/build_db.py        # склейка, скоринг, data/leads.db
+
+# 2. приложение
+npm install
+cp .env.example .env.local                        # добавьте ANTHROPIC_API_KEY для питчей от Claude
+npm run dev                                       # http://localhost:3000
+npm test                                          # кредиты, платежи, маски контактов
+```
+
+Без `ANTHROPIC_API_KEY` питч собирается из шаблона. Без ключей ЮKassa локально работает тестовая оплата кнопкой (в продакшене её нет).
+
+Деньги и аккаунты: регистрация даёт 5 кредитов, 1 кредит открывает контакты лида вместе с проверкой сайта и питчем, пакеты кредитов
+покупаются через ЮKassa. Цены меняются в `src/lib/billing.ts`. Деплой на Vercel: [docs/DEPLOY.md](docs/DEPLOY.md). Модель задаётся в `ANTHROPIC_MODEL` (по умолчанию `claude-opus-5-5`,
+для экономии подойдёт `claude-haiku-5-5`).
+
+## Как устроено
+
+```
+ingest/overture.py   Overture Places по России -> data/overture_ru.parquet
+ingest/osm.py        OSM через Overpass плитками с кэшем -> data/osm_ru.parquet
+ingest/build_db.py   ниши, склейка дублей, города, скоринг -> data/leads.db (SQLite + FTS5)
+ingest/niches.py     какие категории считаем нишами фрилансера
+ingest/common.py     нормализация, классификация ссылок, скоринг, подсказки услуг
+src/lib/db.ts        две libSQL-базы: каталог (только чтение) и аккаунты/кредиты/платежи
+src/lib/search.ts    поиск по каталогу; единственное место, где контакты вырезаются, пока лид не открыт
+src/lib/credits.ts   разблокировка за кредит одной транзакцией, баланс, история
+src/lib/billing.ts   пакеты, платёж в ЮKassa, вебхук со сверкой статуса и суммы, тестовая оплата
+src/lib/auth.ts      регистрация и вход (scrypt), сессии в cookie
+src/lib/audit.ts     проверка сайта: HTTPS, адаптивность, телефон, заброшенность; защита от SSRF
+src/lib/pitch.ts     питч через Claude (structured output) или шаблон
+src/app/             главная с фильтрами, карточка лида, выгрузка CSV, «О данных»
+```
+
+Оценка лида (0–100) считается в `ingest/common.py::lead_score`: сильнее всего влияет отсутствие своего сайта, затем телефон,
+e-mail, соцсети и «чек» ниши; сетевые заведения получают штраф.
+
+## Что дальше
+
+* Подтверждение e-mail и сброс пароля (нужна почтовая рассылка).
+* Открытие сразу нескольких лидов, промокоды, возвраты из кабинета.
+* Реестр МСП ФНС как сигнал «новая компания».
+* Проверка «сайт действительно отсутствует» перед выдачей лида.
+* Остальные города: выгрузка Geofabrik `russia-latest.osm.pbf` вместо Overpass.
+

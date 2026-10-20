@@ -1,0 +1,232 @@
+import { randomUUID } from "node:crypto";
+import net from "node:net";
+import { appDb, writeTx } from "./db";
+
+export type Package = { id: string; title: string; credits: number; priceRub: number };
+
+// Цены и размеры пакетов: меняйте здесь.
+export const PACKAGES: Package[] = [
+  { id: "s20", title: "Старт", credits: 20, priceRub: 490 },
+  { id: "s60", title: "Стандарт", credits: 60, priceRub: 1190 },
+  { id: "s200", title: "Про", credits: 200, priceRub: 2990 },
+];
+
+export const getPackage = (id: string) => PACKAGES.find((p) => p.id === id);
+
+const now = () => Math.floor(Date.now() / 1000);
+
+export function yookassaConfigured(): boolean {
+  return !!(process.env.YOOKASSA_SHOP_ID && process.env.YOOKASSA_SECRET_KEY);
+}
+
+/** Тестовая оплата без ЮKassa: только локально, в продакшене её не бывает. */
+export function mockMode(): boolean {
+  return !yookassaConfigured() && process.env.NODE_ENV !== "production";
+}
+
+export function paymentsEnabled(): boolean {
+  return yookassaConfigured() || mockMode();
+}
+
+export function appBaseUrl(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  return new URL(req.url).origin;
+}
+
+// ---------------------------------------------------------------- клиент ЮKassa
+
+type YooPayment = {
+  id: string;
+  status: string;
+  paid?: boolean;
+  amount?: { value: string; currency: string };
+  confirmation?: { confirmation_url?: string };
+  metadata?: Record<string, string>;
+};
+
+async function yoo(path: string, init: { method?: string; idempotenceKey?: string; body?: unknown } = {}): Promise<YooPayment> {
+  const base = process.env.YOOKASSA_API_URL ?? "https://api.yookassa.ru/v3";
+  const auth = Buffer.from(`${process.env.YOOKASSA_SHOP_ID}:${process.env.YOOKASSA_SECRET_KEY}`).toString("base64");
+  const res = await fetch(base + path, {
+    method: init.method ?? "GET",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/json",
+      ...(init.idempotenceKey ? { "Idempotence-Key": init.idempotenceKey } : {}),
+    },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+    signal: AbortSignal.timeout(15000),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`YooKassa ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return (await res.json()) as YooPayment;
+}
+
+function receipt(email: string, pkg: Package, value: string) {
+  // Нужен только ИП и ООО, у которых включены «Чеки от ЮKassa». Самозанятым чек формирует «Мой налог».
+  if (process.env.YOOKASSA_RECEIPT !== "1") return {};
+  return {
+    receipt: {
+      customer: { email },
+      items: [
+        {
+          description: `FindWork: ${pkg.credits} кредитов`.slice(0, 128),
+          quantity: "1.00",
+          amount: { value, currency: "RUB" },
+          vat_code: parseInt(process.env.YOOKASSA_VAT_CODE ?? "1", 10), // 1 = без НДС
+          payment_mode: process.env.YOOKASSA_PAYMENT_MODE ?? "full_payment",
+          payment_subject: process.env.YOOKASSA_PAYMENT_SUBJECT ?? "service",
+        },
+      ],
+      ...(process.env.YOOKASSA_TAX_SYSTEM ? { tax_system_code: parseInt(process.env.YOOKASSA_TAX_SYSTEM, 10) } : {}),
+    },
+  };
+}
+
+// ---------------------------------------------------------------- платежи
+
+export async function createCheckout(
+  user: { id: number; email: string },
+  pkg: Package,
+  baseUrl: string,
+): Promise<{ paymentId: string; url: string }> {
+  const db = await appDb();
+  const id = randomUUID();
+  const provider = yookassaConfigured() ? "yookassa" : "mock";
+  await db.execute({
+    sql: `INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at)
+          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    args: [id, user.id, pkg.id, pkg.credits, pkg.priceRub * 100, provider, now()],
+  });
+
+  if (provider === "mock") return { paymentId: id, url: `/billing/mock?payment=${id}` };
+
+  const value = pkg.priceRub.toFixed(2);
+  try {
+    const yp = await yoo("/payments", {
+      method: "POST",
+      idempotenceKey: id,
+      body: {
+        amount: { value, currency: "RUB" },
+        capture: true,
+        confirmation: { type: "redirect", return_url: `${baseUrl}/billing/return?payment=${id}` },
+        description: `FindWork: ${pkg.credits} кредитов`.slice(0, 128),
+        metadata: { payment_id: id, user_id: String(user.id) },
+        ...receipt(user.email, pkg, value),
+      },
+    });
+    const url = yp.confirmation?.confirmation_url;
+    if (!url) throw new Error("YooKassa не вернула ссылку на оплату");
+    await db.execute({ sql: "UPDATE payments SET provider_payment_id = ? WHERE id = ?", args: [yp.id, id] });
+    return { paymentId: id, url };
+  } catch (e) {
+    await db.execute({ sql: "UPDATE payments SET status = 'failed' WHERE id = ? AND status = 'pending'", args: [id] });
+    throw e;
+  }
+}
+
+/** Зачисляет кредиты за оплаченный платёж. Безопасно вызывать сколько угодно раз: начислит один. */
+export async function fulfillPayment(paymentId: string): Promise<boolean> {
+  return writeTx<boolean>(async (tx) => {
+    const t = now();
+    const upd = await tx.execute({
+      sql: "UPDATE payments SET status = 'succeeded', paid_at = ? WHERE id = ? AND status = 'pending'",
+      args: [t, paymentId],
+    });
+    if (upd.rowsAffected !== 1) return { value: false, rollback: true };
+    const p = (await tx.execute({ sql: "SELECT user_id, credits FROM payments WHERE id = ?", args: [paymentId] })).rows[0];
+    await tx.execute({ sql: "UPDATE users SET balance = balance + ? WHERE id = ?", args: [Number(p.credits), Number(p.user_id)] });
+    await tx.execute({
+      sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'purchase', ?, ?)",
+      args: [Number(p.user_id), Number(p.credits), paymentId, t],
+    });
+    return { value: true };
+  });
+}
+
+export type SettleResult = "succeeded" | "canceled" | "pending" | "unknown" | "mismatch";
+
+/**
+ * Сверяет платёж с ЮKassa и при успехе зачисляет кредиты.
+ * Содержимому вебхука не верим: статус и сумму берём из ответа API ЮKassa на запрос по id платежа.
+ */
+export async function settleByProviderId(providerPaymentId: string): Promise<SettleResult> {
+  const db = await appDb();
+  const row = (
+    await db.execute({
+      sql: "SELECT id, amount_kop FROM payments WHERE provider = 'yookassa' AND provider_payment_id = ?",
+      args: [providerPaymentId],
+    })
+  ).rows[0];
+  if (!row) return "unknown";
+
+  const yp = await yoo(`/payments/${encodeURIComponent(providerPaymentId)}`);
+  if (yp.status === "succeeded" && yp.paid === true) {
+    const expected = (Number(row.amount_kop) / 100).toFixed(2);
+    if (yp.amount?.currency !== "RUB" || yp.amount.value !== expected) {
+      console.error(`[billing] сумма платежа ${providerPaymentId} не совпала: ${yp.amount?.value} ${yp.amount?.currency}, ждали ${expected} RUB`);
+      return "mismatch";
+    }
+    await fulfillPayment(String(row.id));
+    return "succeeded";
+  }
+  if (yp.status === "canceled") {
+    await db.execute({ sql: "UPDATE payments SET status = 'canceled' WHERE id = ? AND status = 'pending'", args: [String(row.id)] });
+    return "canceled";
+  }
+  return "pending";
+}
+
+export type PaymentRow = {
+  id: string; packageId: string; credits: number; amountRub: number; status: string; provider: string;
+  providerPaymentId: string | null; createdAt: number;
+};
+
+function toPayment(r: Record<string, unknown>): PaymentRow {
+  return {
+    id: String(r.id), packageId: String(r.package_id), credits: Number(r.credits), amountRub: Number(r.amount_kop) / 100,
+    status: String(r.status), provider: String(r.provider),
+    providerPaymentId: r.provider_payment_id == null ? null : String(r.provider_payment_id), createdAt: Number(r.created_at),
+  };
+}
+
+export async function getPayment(userId: number, id: string): Promise<PaymentRow | null> {
+  const db = await appDb();
+  const r = await db.execute({ sql: "SELECT * FROM payments WHERE id = ? AND user_id = ?", args: [id, userId] });
+  return r.rows[0] ? toPayment(r.rows[0] as unknown as Record<string, unknown>) : null;
+}
+
+export async function listPayments(userId: number, limit = 20): Promise<PaymentRow[]> {
+  const db = await appDb();
+  const r = await db.execute({ sql: "SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", args: [userId, limit] });
+  return r.rows.map((x) => toPayment(x as unknown as Record<string, unknown>));
+}
+
+/** Подтверждение тестовой оплаты (только когда mockMode()). */
+export async function confirmMockPayment(userId: number, paymentId: string): Promise<boolean> {
+  if (!mockMode()) return false;
+  const p = await getPayment(userId, paymentId);
+  if (!p || p.provider !== "mock") return false;
+  return fulfillPayment(paymentId);
+}
+
+// ---------------------------------------------------------------- адреса ЮKassa (по документации)
+
+const YOO_V4 = ["185.71.76.0/27", "185.71.77.0/27", "77.75.153.0/25", "77.75.156.11/32", "77.75.156.35/32", "77.75.154.128/25"];
+
+function inCidr(ip: string, cidr: string): boolean {
+  const [base, bits] = cidr.split("/");
+  const toInt = (a: string) => a.split(".").reduce((acc, o) => (acc << 8) + Number(o), 0) >>> 0;
+  const mask = bits === "0" ? 0 : (~0 << (32 - Number(bits))) >>> 0;
+  return (toInt(ip) & mask) === (toInt(base) & mask);
+}
+
+export function yookassaIpAllowed(ip: string): boolean {
+  if (net.isIPv4(ip)) return YOO_V4.some((c) => inCidr(ip, c));
+  if (net.isIPv6(ip)) return ip.toLowerCase().startsWith("2a02:5180:");
+  return false;
+}

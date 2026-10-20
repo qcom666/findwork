@@ -1,0 +1,9 @@
+data
+ingest/.venv
+ingest/__pycache__
+node_modules
+.next
+.env
+.env.*
+tsconfig.tsbuildinfo
+.claude

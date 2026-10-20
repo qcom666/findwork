@@ -1,0 +1,76 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { LogoutButton } from "@/components/Small";
+import { getCurrentUser } from "@/lib/auth";
+import { listPayments } from "@/lib/billing";
+import { getLedger } from "@/lib/credits";
+import { plural } from "@/lib/format";
+import { getLeadsUnlocked } from "@/lib/search";
+
+export const metadata = { title: "Аккаунт — FindWork" };
+
+const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид" };
+const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+
+export default async function Account() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/account");
+
+  const [payments, ledger] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50)]);
+  const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
+  const names = new Map((await getLeadsUnlocked(unlockIds)).map((l) => [l.id, l.name]));
+
+  return (
+    <div className="space-y-6">
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5">
+        <div>
+          <p className="text-sm text-muted">{user.email}</p>
+          <p className="mt-1 text-3xl font-semibold">
+            {user.balance} <span className="text-lg font-normal text-muted">{plural(user.balance, "кредит", "кредита", "кредитов")}</span>
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/pricing" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90">Пополнить</Link>
+          <LogoutButton />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Платежи</h2>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted">Покупок пока не было.</p>
+        ) : (
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface text-sm">
+            {payments.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <span>{p.credits} кредитов · {p.amountRub.toLocaleString("ru-RU")} ₽</span>
+                <span className="text-muted">{STATUS[p.status] ?? p.status} · {dt(p.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">История кредитов</h2>
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface text-sm">
+          {ledger.map((l) => (
+            <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="min-w-0 truncate">
+                {REASON[l.reason] ?? l.reason}
+                {l.reason === "unlock" && l.ref && (
+                  <>: <Link href={`/lead/${encodeURIComponent(l.ref)}`} className="text-accent hover:underline">{names.get(l.ref) ?? "заведение"}</Link></>
+                )}
+              </span>
+              <span className="flex shrink-0 gap-3">
+                <span className="text-muted">{dt(l.createdAt)}</span>
+                <b className={l.delta > 0 ? "text-good" : ""}>{l.delta > 0 ? `+${l.delta}` : l.delta}</b>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
