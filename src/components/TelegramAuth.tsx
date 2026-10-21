@@ -7,58 +7,80 @@ import { ConsentChecks } from "./ConsentChecks";
 type Widget = Record<string, string | number>;
 type TgWindow = Window & { onTelegramAuth?: (user: Widget) => void };
 export type MergeSummary = { balance: number; unlocks: number; payments: number; subscriptions: number; reports: number; claims: number };
+/** Откуда пришло подтверждение: окно Telegram (данные виджета) или бот (одноразовый токен запроса). */
+type Src = { t: "widget"; auth: Widget } | { t: "bot"; token: string };
 
 /**
- * Telegram Login Widget в двух режимах.
- *  login: вход и регистрация. Если аккаунта ещё нет, сервер просит согласия: показываем две отметки и отправляем те же данные виджета повторно.
+ * Telegram в двух режимах и двумя способами.
+ *  login: вход и регистрация. Если аккаунта ещё нет, сервер просит согласия: показываем две отметки и отправляем запрос повторно.
  *  link: привязка Telegram к аккаунту, в который вы уже вошли. Если этот Telegram заходил отдельно и у него свой аккаунт,
  *        сервер присылает сводку, и мы просим подтвердить объединение.
+ * Способы: кнопка Telegram (окно oauth.telegram.org) и «Войти через бота» (ссылка на бота и Start): второй не зависит от окна.
  * bot: имя бота; null: вход не настроен (в продакшене блок скрывается страницей, локально показываем подсказку).
  */
 export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: { bot: string | null; next?: string; hint?: boolean; title: string; mode?: "login" | "link" }) {
   const router = useRouter();
   const holder = useRef<HTMLDivElement>(null);
-  const [pending, setPending] = useState<Widget | null>(null);
-  const [merge, setMerge] = useState<{ auth: Widget; info: MergeSummary } | null>(null);
+  const inFlight = useRef(false);
+  const [pending, setPending] = useState<Src | null>(null);
+  const [merge, setMerge] = useState<{ src: Src; info: MergeSummary } | null>(null);
+  const [botFlow, setBotFlow] = useState<{ token: string; url: string; ttl: number } | null>(null);
   const [accept, setAccept] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  async function send(auth: Widget, extra: { accept?: boolean; consent?: boolean; confirm?: boolean } = {}) {
-    setBusy(true); setErr("");
+  function reset(message = "") {
+    setErr(message); setPending(null); setMerge(null); setBotFlow(null); setBusy(false);
+  }
+
+  /** silent: фоновый опрос бота, без индикатора занятости. */
+  async function call(src: Src, extra: { accept?: boolean; consent?: boolean; confirm?: boolean } = {}, silent = false) {
+    if (silent && inFlight.current) return;
+    inFlight.current = true;
+    if (!silent) { setBusy(true); setErr(""); }
     try {
-      const res = await fetch(mode === "link" ? "/api/auth/telegram/link" : "/api/auth/telegram", {
+      const url = src.t === "bot" ? "/api/auth/telegram/bot/poll" : mode === "link" ? "/api/auth/telegram/link" : "/api/auth/telegram";
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auth, ...extra }),
+        body: JSON.stringify(src.t === "bot" ? { token: src.token, ...extra } : { auth: src.auth, ...extra }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.needConsent) {
-        setPending(auth);
-        setBusy(false);
-        return;
-      }
-      if (data.needConfirm) {
-        setMerge({ auth, info: data.info });
-        setBusy(false);
-        return;
-      }
+      if (data.status === "waiting") return;
+      if (data.status === "expired") return reset("Время запроса вышло. Начните заново.");
+      if (data.status === "denied") return reset("Вход отклонён в Telegram.");
+      if (data.needConsent || data.status === "needConsent") { setPending(src); setBusy(false); return; }
+      if (data.needConfirm || data.status === "needConfirm") { setMerge({ src, info: data.info }); setBusy(false); return; }
       if (!res.ok) throw new Error(data.error ?? "Не удалось выполнить вход через Telegram");
       if (mode !== "link") router.push(next);
       router.refresh();
     } catch (e) {
+      reset((e as Error).message);
+    } finally {
+      inFlight.current = false;
+    }
+  }
+
+  async function startBot() {
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/auth/telegram/bot/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Не удалось начать вход через бота");
+      setBotFlow(data);
+    } catch (e) {
       setErr((e as Error).message);
-      setPending(null);
-      setMerge(null);
+    } finally {
       setBusy(false);
     }
   }
 
+  // Окно Telegram: скрипт виджета ставит кнопку и вызывает onTelegramAuth после подтверждения.
   useEffect(() => {
     const box = holder.current;
     if (!bot || !box) return;
-    (window as TgWindow).onTelegramAuth = (user) => void send(user);
+    (window as TgWindow).onTelegramAuth = (user) => void call({ t: "widget", auth: user });
     const s = document.createElement("script");
     s.src = "https://telegram.org/js/telegram-widget.js?22";
     s.async = true;
@@ -72,9 +94,18 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
       box.replaceChildren();
       delete (window as TgWindow).onTelegramAuth;
     };
-    // send не меняет поведение между рендерами, а перезапуск скрипта сбросил бы виджет
+    // call не меняет поведение между рендерами, а перезапуск скрипта сбросил бы виджет
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bot, pending, merge]);
+  }, [bot, pending, merge, botFlow]);
+
+  // Вход через бота: пока человек подтверждает в Telegram, раз в две секунды спрашиваем сервер.
+  useEffect(() => {
+    if (!botFlow || pending || merge) return;
+    const poll = setInterval(() => void call({ t: "bot", token: botFlow.token }, {}, true), 2000);
+    const stop = setTimeout(() => reset("Время запроса вышло. Начните заново."), botFlow.ttl * 1000);
+    return () => { clearInterval(poll); clearTimeout(stop); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botFlow, pending, merge]);
 
   if (!bot) {
     return hint ? (
@@ -100,8 +131,8 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
           </ul>
           <p className="text-muted">Всё это перейдёт в текущий аккаунт, а отдельный Telegram-аккаунт перестанет существовать. Отменить это нельзя.</p>
           <div className="flex gap-2">
-            <button disabled={busy} className="btn btn-primary btn-sm" onClick={() => void send(merge.auth, { confirm: true })}>{busy ? "Объединяю…" : "Объединить аккаунты"}</button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMerge(null)}>Отмена</button>
+            <button disabled={busy} className="btn btn-primary btn-sm" onClick={() => void call(merge.src, { confirm: true })}>{busy ? "Объединяю…" : "Объединить аккаунты"}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => reset()}>Отмена</button>
           </div>
         </div>
       ) : pending ? (
@@ -109,7 +140,7 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
           key="consent"
           onSubmit={(e) => {
             e.preventDefault();
-            void send(pending, { accept, consent });
+            void call(pending, { accept, consent });
           }}
           className="space-y-3 rounded-xl border border-line bg-surface-2 p-4"
         >
@@ -117,12 +148,32 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
           <ConsentChecks accept={accept} consent={consent} onAccept={setAccept} onConsent={setConsent} />
           <div className="flex gap-2">
             <button disabled={busy || !accept || !consent} className="btn btn-primary btn-sm">{busy ? "Подождите…" : "Создать аккаунт"}</button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPending(null)}>Отмена</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => reset()}>Отмена</button>
           </div>
         </form>
+      ) : botFlow ? (
+        <div key="bot" className="space-y-3 rounded-xl border border-line bg-surface-2 p-4 text-sm">
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>Откройте бота в Telegram: <a href={botFlow.url} target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">@{bot}</a>.</li>
+            <li>Нажмите <b>Start</b>, затем <b>«Да, это я»</b>.</li>
+            <li>Вернитесь сюда: страница обновится сама.</li>
+          </ol>
+          <div className="flex flex-wrap items-center gap-3">
+            <a href={botFlow.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">Открыть бота</a>
+            <span className="text-xs text-muted">Ждём подтверждения…</span>
+            <button type="button" className="text-xs text-muted hover:text-ink hover:underline" onClick={() => reset()}>Отмена</button>
+          </div>
+        </div>
       ) : (
-        // key: без него React переиспользует этот же div под панель подтверждения, а очистка виджета стёрла бы её содержимое
-        <div key="widget" className="flex min-h-[40px] justify-center" ref={holder} aria-label={mode === "link" ? "Привязать Telegram" : "Войти через Telegram"} />
+        <>
+          <div key="widget" className="flex min-h-[40px] justify-center" ref={holder} aria-label={mode === "link" ? "Привязать Telegram" : "Войти через Telegram"} />
+          <p className="text-center text-xs text-muted">
+            Не приходит подтверждение?{" "}
+            <button type="button" onClick={() => void startBot()} disabled={busy} className="text-accent hover:underline disabled:opacity-60">
+              {mode === "link" ? "Привязать через бота" : "Войти через бота"}
+            </button>
+          </p>
+        </>
       )}
       {err && <p className="text-center text-sm text-bad">{err}</p>}
     </div>

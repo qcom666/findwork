@@ -169,6 +169,22 @@ const SCHEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS ix_reports_user ON audit_reports(user_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS ix_reports_lead ON audit_reports(user_id, lead_id)`,
+  // Вход через бота: браузер просит ссылку на бота, человек нажимает Start и подтверждает вход в Telegram, браузер опрашивает состояние.
+  // Хранится только хеш секрета. state: pending (ждём Start), asked (бот спросил «это вы?»), confirmed, denied, consumed.
+  `CREATE TABLE IF NOT EXISTS tg_login_requests (
+     token_hash TEXT PRIMARY KEY,
+     mode TEXT NOT NULL,
+     user_id INTEGER,
+     state TEXT NOT NULL DEFAULT 'pending',
+     tg_id INTEGER,
+     tg_username TEXT,
+     tg_name TEXT,
+     ip TEXT NOT NULL DEFAULT '',
+     ua TEXT NOT NULL DEFAULT '',
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_tgreq_expires ON tg_login_requests(expires_at)`,
   // След объединения аккаунтов (привязка Telegram к аккаунту с почтой): кого во что влили и что перенесли. Нужен для разбора споров.
   `CREATE TABLE IF NOT EXISTS account_merges (
      id INTEGER PRIMARY KEY AUTOINCREMENT,

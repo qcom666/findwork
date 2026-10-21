@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { AdminGrant } from "@/components/AdminGrant";
 import { AdminNav } from "@/components/AdminNav";
 import { getAdmin } from "@/lib/admin";
 import { getLabels } from "@/lib/search";
@@ -13,7 +14,8 @@ const STATUS: Record<string, string> = { pending: "ждёт оплаты", succe
 
 export default async function Admin() {
   // Для всех остальных страницы не существует: ADMIN_EMAILS не задан или вы не в списке.
-  if (!(await getAdmin())) notFound();
+  const admin = await getAdmin();
+  if (!admin) notFound();
 
   const [m, labels] = await Promise.all([getMetrics(), getLabels()]);
   const conv = m.users.total ? Math.round((m.users.payers / m.users.total) * 1000) / 10 : 0;
@@ -25,6 +27,8 @@ export default async function Admin() {
         <h1 className="text-2xl font-bold tracking-tight">Обзор</h1>
         <p className="text-sm text-muted">Только для владельца. Данные считаются при открытии страницы, тестовые платежи не входят в выручку.</p>
       </div>
+
+      <AdminGrant selfEmail={admin.email} />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Выручка всего" value={rub(m.money.revenueRub)} sub={`за 30 дней: ${rub(m.money.revenue30Rub)}`} />

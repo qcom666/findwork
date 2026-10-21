@@ -1,4 +1,4 @@
-import { linkTelegram } from "@/lib/account-link";
+import { linkMessage, linkTelegram } from "@/lib/account-link";
 import { json, needUser, readJson } from "@/lib/http";
 import { allow } from "@/lib/ratelimit";
 import { telegramConfigured, verifyTelegramLogin } from "@/lib/telegram";
@@ -25,12 +25,6 @@ export async function POST(req: Request) {
 
   const r = await linkTelegram(auth.user.id, v.user, { confirm: b.confirm === true });
   if (r.ok) return json({ ok: true, merged: r.merged });
-  switch (r.reason) {
-    case "needConfirm": return json({ needConfirm: true, info: r.info });
-    case "already": return json({ error: "Этот Telegram уже привязан к вашему аккаунту" }, 409);
-    case "other_tg": return json({ error: "К вашему аккаунту уже привязан другой Telegram. Сначала отвяжите его." }, 409);
-    case "taken": return json({ error: "Этот Telegram привязан к другому аккаунту с почтой. Войдите в него и отвяжите Telegram там, затем повторите." }, 409);
-    case "synthetic": return json({ error: "Этот аккаунт уже работает через Telegram" }, 409);
-    default: return json({ error: "Аккаунт не найден" }, 404);
-  }
+  if (r.reason === "needConfirm") return json({ needConfirm: true, info: r.info });
+  return json({ error: linkMessage(r.reason) }, r.reason === "no_user" ? 404 : 409);
 }

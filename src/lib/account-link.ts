@@ -128,3 +128,15 @@ export async function unlinkTelegram(userId: number): Promise<{ ok: true } | { o
   await db.execute({ sql: "UPDATE users SET tg_id = NULL, tg_username = NULL, display_name = NULL WHERE id = ?", args: [userId] });
   return { ok: true };
 }
+
+/** Что сказать человеку, когда привязка не удалась. Общий текст для виджета и для бота. */
+export function linkMessage(reason: Exclude<LinkResult, { ok: true }>["reason"]): string {
+  switch (reason) {
+    case "already": return "Этот Telegram уже привязан к вашему аккаунту";
+    case "other_tg": return "К вашему аккаунту уже привязан другой Telegram. Сначала отвяжите его.";
+    case "taken": return "Этот Telegram привязан к другому аккаунту с почтой. Войдите в него и отвяжите Telegram там, затем повторите.";
+    case "synthetic": return "Этот аккаунт уже работает через Telegram";
+    case "needConfirm": return "Нужно подтвердить объединение аккаунтов";
+    default: return "Аккаунт не найден";
+  }
+}
