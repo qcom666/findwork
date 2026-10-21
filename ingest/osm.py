@@ -185,12 +185,12 @@ def main():
         total_failed += failed
         print(f"{name}: {rows} объектов, ошибок {failed}, {time.time() - t:.0f} с", flush=True)
 
-    files = sorted(str(p) for p in CACHE.glob("*.jsonl"))
-    if not files:
+    if not any(CACHE.glob("*.jsonl")):
         sys.exit("Нет данных")
     con = duckdb.connect()
+    # Маску файлов отдаём DuckDB как есть: список путей через json.dumps экранировал кириллицу в именах городов.
     con.execute(
-        f"""COPY (SELECT DISTINCT ON (osm_id) * FROM read_json_auto({json.dumps(files)}, format='newline_delimited',
+        f"""COPY (SELECT DISTINCT ON (osm_id) * FROM read_json_auto('{CACHE}/*.jsonl', format='newline_delimited',
                   union_by_name=true, sample_size=-1)) TO '{OUT}' (FORMAT parquet, COMPRESSION zstd)"""
     )
     n = con.execute(f"SELECT count(*) FROM read_parquet('{OUT}')").fetchone()[0]
