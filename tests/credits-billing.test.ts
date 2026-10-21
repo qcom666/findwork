@@ -112,12 +112,12 @@ describe("платежи", () => {
   it("fulfillPayment зачисляет кредиты ровно один раз", async () => {
     const u = await newUser(0);
     await db.execute({
-      sql: "INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at) VALUES ('p1', ?, 's20', 20, 49000, 'pending', 'mock', 0)",
+      sql: "INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at) VALUES ('p1', ?, 's100', 100, 49000, 'pending', 'mock', 0)",
       args: [u],
     });
     const results = await Promise.all([fulfillPayment("p1"), fulfillPayment("p1"), fulfillPayment("p1")]);
     assert.equal(results.filter(Boolean).length, 1);
-    assert.equal(await getBalance(u), 20);
+    assert.equal(await getBalance(u), 100);
     assert.equal((await getLedger(u)).filter((l) => l.reason === "purchase").length, 1);
   });
 
@@ -158,7 +158,7 @@ describe("платежи", () => {
     it("создаёт платёж по документации: Basic-авторизация, Idempotence-Key, сумма строкой, return_url", async () => {
       const u = await newUser(0);
       behaviour = () => ({ status: 200, json: { id: "yoo-1", status: "pending", confirmation: { confirmation_url: "https://yoomoney.ru/pay/yoo-1" } } });
-      const r = await createCheckout({ id: u, email: "a@b.ru" }, getPackage("s60")!, "https://findwork.example");
+      const r = await createCheckout({ id: u, email: "a@b.ru" }, getPackage("s400")!, "https://findwork.example");
 
       assert.equal(r.url, "https://yoomoney.ru/pay/yoo-1");
       const req = requests[0];
@@ -167,7 +167,7 @@ describe("платежи", () => {
       assert.equal(req.headers.authorization, "Basic " + Buffer.from("shop-123:secret-key").toString("base64"));
       assert.equal(req.headers["idempotence-key"], r.paymentId);
       const body = JSON.parse(req.body);
-      assert.deepEqual(body.amount, { value: "1190.00", currency: "RUB" });
+      assert.deepEqual(body.amount, { value: "1490.00", currency: "RUB" });
       assert.equal(body.capture, true);
       assert.deepEqual(body.confirmation, { type: "redirect", return_url: `https://findwork.example/billing/return?payment=${r.paymentId}` });
       assert.equal(body.metadata.payment_id, r.paymentId);
@@ -183,7 +183,7 @@ describe("платежи", () => {
       process.env.YOOKASSA_RECEIPT = "1";
       const u = await newUser(0);
       behaviour = () => ({ status: 200, json: { id: "yoo-r", status: "pending", confirmation: { confirmation_url: "https://pay" } } });
-      await createCheckout({ id: u, email: "buyer@x.ru" }, getPackage("s20")!, "https://x");
+      await createCheckout({ id: u, email: "buyer@x.ru" }, getPackage("s100")!, "https://x");
       const body = JSON.parse(requests[0].body);
       assert.equal(body.receipt.customer.email, "buyer@x.ru");
       assert.equal(body.receipt.items[0].amount.value, "490.00");
@@ -194,14 +194,14 @@ describe("платежи", () => {
     it("при ошибке ЮKassa помечает платёж как failed и бросает ошибку", async () => {
       const u = await newUser(0);
       behaviour = () => ({ status: 400, json: { type: "error" } });
-      await assert.rejects(createCheckout({ id: u, email: "a@b.ru" }, getPackage("s20")!, "https://x"));
+      await assert.rejects(createCheckout({ id: u, email: "a@b.ru" }, getPackage("s100")!, "https://x"));
       const row = (await db.execute("SELECT status FROM payments")).rows[0];
       assert.equal(row.status, "failed");
     });
 
     async function pendingPayment(u: number, providerId: string) {
       behaviour = () => ({ status: 200, json: { id: providerId, status: "pending", confirmation: { confirmation_url: "https://pay" } } });
-      const r = await createCheckout({ id: u, email: "a@b.ru" }, getPackage("s20")!, "https://x");
+      const r = await createCheckout({ id: u, email: "a@b.ru" }, getPackage("s100")!, "https://x");
       requests = [];
       return r.paymentId;
     }
@@ -212,7 +212,7 @@ describe("платежи", () => {
       behaviour = () => ({ status: 200, json: { id: "yoo-ok", status: "succeeded", paid: true, amount: { value: "490.00", currency: "RUB" } } });
       assert.equal(await settleByProviderId("yoo-ok"), "succeeded");
       assert.equal(await settleByProviderId("yoo-ok"), "succeeded");
-      assert.equal(await getBalance(u), 20);
+      assert.equal(await getBalance(u), 100);
       assert.equal(requests[0].url, "/v3/payments/yoo-ok");
       assert.equal(requests[0].method, "GET");
     });

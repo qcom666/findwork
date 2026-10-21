@@ -8,6 +8,7 @@ import { PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
 import { SERVICE_SHORT, plural } from "@/lib/format";
+import { PLANS, planPerLead } from "@/lib/plans";
 import { getNiches, getStats, type Option, type Stats } from "@/lib/search";
 import { getAllCities, type CityInfo } from "@/lib/seo";
 
@@ -25,11 +26,30 @@ const FEATURES = [
   { title: "Статусы и заметки", text: "Отмечайте, кому написали, кто ответил и с кем сделка. Все открытые лиды выгружаются в CSV." },
 ];
 
+const WHY = [
+  { title: "Готово сразу", text: "Каталог собран заранее, поиск и фильтры отвечают за секунды. Не нужно ждать, пока сервис «соберёт» заведения под ваш запрос." },
+  { title: "Законные данные", text: "Открытые лицензии (Overture Maps, OpenStreetMap), а не парсинг карт. Нет блокировок и очередей, и не нужно гадать, можно ли использовать эти данные." },
+  { title: "Платите за нужное", text: "Кредиты не сгорают, подписка без автопродления и пробных списаний, неиспользованные кредиты возвращаем." },
+  { title: "Оценка до оплаты", text: "Оценка лида, причины и что предложить видны бесплатно. Контакты открываете только у тех заведений, которые подходят." },
+];
+
+// Сравнение с типичными сервисами-парсерами карт: без названий, с оговоркой «как правило», и честная строка про охват.
+const COMPARE: { row: string; us: string; them: string }[] = [
+  { row: "Источник данных", us: "Открытые лицензии: Overture Maps, OpenStreetMap", them: "Парсинг карт-сервисов без явного разрешения" },
+  { row: "Ожидание", us: "Поиск за секунды: база готова", them: "Сбор «на лету» в очереди, дольше при больших запросах" },
+  { row: "До оплаты", us: "Весь каталог без регистрации", them: "Часто только после входа" },
+  { row: "Число контактов", us: "Точное: сколько указано, столько и получите", them: "«Примерно»: считают по числу запусков сбора" },
+  { row: "Оплата", us: "Кредиты без срока или подписка без автопродления", them: "Ежемесячная подписка с автосписанием" },
+  { row: "Возврат", us: "Неиспользованные кредиты возвращаем", them: "Как правило, только при двойном списании" },
+  { row: "Охват", us: "Сотни тысяч заведений России, база растёт", them: "Шире: весь каталог карты и города СНГ" },
+];
+
 const FAQ = [
   { q: "Откуда данные?", a: "Из открытых баз Overture Maps и OpenStreetMap, лицензии которых разрешают коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: условия Яндекса запрещают хранить и перепродавать данные, а разрешение 2ГИС мы подтвердить не смогли." },
   { q: "Что значит «сайта нет»?", a: "Ссылки на собственный сайт нет в открытых данных. Бывает, что сайт есть, а его просто не внесли, поэтому в карточке есть быстрая проверка на картах, а питч пишет «не нашёл ссылку», а не «у вас нет сайта»." },
   { q: "Можно ли писать заведениям?", a: "Да, но рекламу по телефону и e-mail по закону (ст. 18 «О рекламе») можно слать только с согласия получателя. Начинайте с короткого личного сообщения, не делайте массовых рассылок и сразу прекращайте писать тем, кто попросил." },
   { q: "За что я плачу?", a: "За открытие контактов одного заведения, вместе с проверкой сайта и питчем. Просматривать каталог, оценки и причины бесплатно. Кредиты не сгорают." },
+  { q: "Чем это отличается от парсеров 2ГИС?", a: "Парсер собирает данные с карты в момент запроса, поэтому вы ждёте очередь, зависите от блокировок и используете данные, которые сервис карт не разрешал собирать. У нас каталог готов заранее и собран из открытых лицензий, поэтому поиск мгновенный, а использование понятное. Взамен охват у нас пока меньше, чем у полного каталога карты, и мы говорим об этом прямо." },
   { q: "Подписка продлевается сама?", a: "Нет. Вы платите один раз за выбранный срок (1, 3 или 12 месяцев), карта не привязывается и повторных списаний не будет. Кредиты приходят раз в месяц, по окончании срока подписка просто заканчивается, а начисленные кредиты остаются у вас." },
   { q: "Сколько данных в базе?", a: "Сотни тысяч заведений в крупных городах. Это меньше, чем в закрытых картах, зато данные открытые и честные. Каталог растёт с каждым обновлением." },
 ];
@@ -43,8 +63,7 @@ export default async function Home() {
     getCurrentUser(),
   ]);
   const topNiches = niches.slice(0, 8);
-  const mid = PACKAGES.find((p) => p.id === "s60") ?? PACKAGES[0];
-  const calcPrice = mid.priceRub / mid.credits;
+  const calcPrice = planPerLead(PLANS.find((p) => p.popular) ?? PLANS[0], 1);
 
   return (
     <div className="space-y-20 pb-8">
@@ -69,7 +88,7 @@ export default async function Home() {
                 </Link>
               )}
             </div>
-            <p className="mt-4 text-sm text-muted">Платите за открытые контакты: разовыми кредитами или выгодной подпиской.</p>
+            <p className="mt-4 text-sm text-muted">Каталог открыт без регистрации{SIGNUP_BONUS > 0 ? `, ${SIGNUP_BONUS} кредитов в подарок без карты` : ""}. Дальше платите за открытые контакты: кредитами или подпиской без автопродления.</p>
           </div>
 
           <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true">
@@ -124,6 +143,38 @@ export default async function Home() {
         </ol>
       </section>
 
+      <section className="space-y-8">
+        <SectionTitle title="Почему FindWork" sub="Мы не парсим карты на лету: каталог собран заранее из открытых данных. Это быстрее, спокойнее и дешевле для вас." />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {WHY.map((w) => (
+            <div key={w.title} className="card p-5">
+              <h3 className="font-semibold">{w.title}</h3>
+              <p className="mt-1.5 text-sm text-muted">{w.text}</p>
+            </div>
+          ))}
+        </div>
+        <div className="card overflow-hidden text-sm">
+          <div className="hidden grid-cols-[9rem_1fr_1fr] gap-4 border-b border-line bg-surface-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted sm:grid">
+            <span />
+            <span className="text-accent">FindWork</span>
+            <span>Сервисы-парсеры карт, как правило</span>
+          </div>
+          <dl className="divide-y divide-line">
+            {COMPARE.map((c) => (
+              <div key={c.row} className="grid gap-1 px-5 py-3.5 sm:grid-cols-[9rem_1fr_1fr] sm:gap-4">
+                <dt className="font-semibold">{c.row}</dt>
+                <dd><span className="text-xs font-semibold text-accent sm:hidden">FindWork: </span>{c.us}</dd>
+                <dd className="text-muted"><span className="text-xs font-semibold sm:hidden">Парсеры: </span>{c.them}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <p className="text-xs text-muted">
+          Сравнение с типичными сервисами-парсерами; у отдельных сервисов условия могут отличаться.{" "}
+          <Link href="/blog/parser-2gis-ili-otkrytye-dannye" className="text-accent hover:underline">Подробнее: парсер 2ГИС или открытые данные</Link>.
+        </p>
+      </section>
+
       {topNiches.length > 0 && (
         <section className="space-y-8">
           <SectionTitle title="Популярные ниши" sub="Столько заведений без собственного сайта сейчас в каталоге." />
@@ -170,7 +221,7 @@ export default async function Home() {
       </section>
 
       <section className="space-y-8">
-        <SectionTitle title="Сколько можно заработать" sub="Подставьте свои цифры: цена лида считается по пакету «Стандарт»." />
+        <SectionTitle title="Сколько можно заработать" sub="Подставьте свои цифры: цена лида считается по тарифу «Студия» на месяц." />
         <RoiCalculator pricePerLead={calcPrice} />
       </section>
 

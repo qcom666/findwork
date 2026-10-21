@@ -209,6 +209,12 @@ body::before {
   .btn-icon:hover { border-color: var(--accent); }
 
   .hero-bg { background-image: var(--glow); }
+  /* Тёмный блок на странице тарифов: одинаково глубокий индиго в светлой и тёмной теме */
+  .pricing-proof {
+    background: linear-gradient(135deg, #1b1a45 0%, #2b2a78 100%);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    box-shadow: var(--shadow);
+  }
   .scroll-x { overflow-x: auto; scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
 

@@ -29,6 +29,9 @@ async function buy(userId: number, planId: string, months: number): Promise<stri
 }
 
 const DAY = 86400;
+const studio = getPlan("studio")!;
+const freelance = getPlan("freelance")!;
+const agency = getPlan("agency")!;
 const sec = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 
 beforeEach(async () => {
@@ -38,11 +41,10 @@ beforeEach(async () => {
 
 describe("тарифы и цены", () => {
   it("цена за срок: цена месяца на число месяцев со скидкой за срок", () => {
-    const studio = getPlan("studio")!;
-    assert.equal(planPrice(studio, 1), 1990);
-    assert.equal(planPrice(studio, 3), Math.round(1990 * 3 * 0.9));
-    assert.equal(planPrice(studio, 12), Math.round(1990 * 12 * 0.8));
-    assert.equal(planCredits(studio, 12), 1440);
+    assert.equal(planPrice(studio, 1), studio.priceMonthRub);
+    assert.equal(planPrice(studio, 3), Math.round(studio.priceMonthRub * 3 * 0.9));
+    assert.equal(planPrice(studio, 12), Math.round(studio.priceMonthRub * 12 * 0.8));
+    assert.equal(planCredits(studio, 12), studio.creditsPerMonth * 12);
   });
 
   it("чем длиннее срок, тем дешевле кредит, и подписка не дороже разовых кредитов того же размера", () => {
@@ -71,26 +73,26 @@ describe("покупка подписки", () => {
     const u = await newUser(5);
     const id = await buy(u, "studio", 3);
 
-    assert.equal(await getBalance(u), 5 + 120);
+    assert.equal(await getBalance(u), 5 + studio.creditsPerMonth);
     const p = await getPayment(u, id);
     assert.equal(p?.kind, "subscription");
-    assert.equal(p?.credits, 360);
+    assert.equal(p?.credits, studio.creditsPerMonth * 3);
     assert.equal(p?.amountRub, planPrice(getPlan("studio")!, 3));
     assert.match(p?.title ?? "", /Студия/);
 
     const subs = await getSubscriptions(u);
     assert.equal(subs.length, 1);
     assert.equal(subs[0].granted, 1);
-    assert.equal(subs[0].creditsPerMonth, 120);
+    assert.equal(subs[0].creditsPerMonth, studio.creditsPerMonth);
     assert.ok(subs[0].nextGrantAt && subs[0].nextGrantAt > Date.now() / 1000 + 27 * DAY);
-    assert.deepEqual((await getLedger(u)).filter((l) => l.reason === "subscription").map((l) => l.delta), [120]);
+    assert.deepEqual((await getLedger(u)).filter((l) => l.reason === "subscription").map((l) => l.delta), [studio.creditsPerMonth]);
   });
 
   it("повторная обработка того же платежа ничего не начисляет", async () => {
     const u = await newUser();
     const id = await buy(u, "freelance", 1);
     assert.equal(await fulfillPayment(id), false);
-    assert.equal(await getBalance(u), 40);
+    assert.equal(await getBalance(u), freelance.creditsPerMonth);
     assert.equal((await db.execute("SELECT count(*) AS n FROM subscriptions")).rows[0].n, 1);
   });
 
@@ -111,16 +113,16 @@ describe("покупка подписки", () => {
     await db.execute({ sql: "UPDATE subscriptions SET starts_at = starts_at - ? WHERE user_id = ?", args: [40 * DAY, u] });
     await db.execute({ sql: "UPDATE users SET sub_next_at = 1 WHERE id = ?", args: [u] });
     const got = await Promise.all([syncSubscriptions(u), syncSubscriptions(u), syncSubscriptions(u)]);
-    assert.equal(got.reduce((a, b) => a + b, 0), 120, "второй месяц начислен один раз, несмотря на параллельные вызовы");
-    assert.equal(await getBalance(u), 240);
+    assert.equal(got.reduce((a, b) => a + b, 0), studio.creditsPerMonth, "второй месяц начислен один раз, несмотря на параллельные вызовы");
+    assert.equal(await getBalance(u), studio.creditsPerMonth * 2);
 
     assert.equal(await syncSubscriptions(u), 0);
-    assert.equal(await getBalance(u), 240);
+    assert.equal(await getBalance(u), studio.creditsPerMonth * 2);
 
     // Ещё 40 дней: наступил третий месяц, подписка начислена целиком.
     await db.execute({ sql: "UPDATE subscriptions SET starts_at = starts_at - ? WHERE user_id = ?", args: [40 * DAY, u] });
-    assert.equal(await syncSubscriptions(u), 120);
-    assert.equal(await getBalance(u), 360);
+    assert.equal(await syncSubscriptions(u), studio.creditsPerMonth);
+    assert.equal(await getBalance(u), studio.creditsPerMonth * 3);
     const row = (await db.execute({ sql: "SELECT sub_next_at FROM users WHERE id = ?", args: [u] })).rows[0];
     assert.equal(row.sub_next_at, null, "начислять больше нечего");
   });
@@ -130,8 +132,8 @@ describe("покупка подписки", () => {
     await buy(u, "agency", 12);
     await db.execute({ sql: "UPDATE subscriptions SET starts_at = starts_at - ? WHERE user_id = ?", args: [100 * DAY, u] });
     const got = await syncSubscriptions(u);
-    assert.equal(got, 400 * 3, "прошло 3 месяца с лишним: ещё три начисления");
-    assert.equal(await getBalance(u), 400 * 4);
+    assert.equal(got, agency.creditsPerMonth * 3, "прошло 3 месяца с лишним: ещё три начисления");
+    assert.equal(await getBalance(u), agency.creditsPerMonth * 4);
   });
 
   it("вторая подписка встаёт в очередь после действующей, оплаченное время не теряется", async () => {
@@ -142,7 +144,7 @@ describe("покупка подписки", () => {
     assert.equal(subs.length, 2);
     assert.equal(subs[1].startsAt, subs[0].endsAt);
     assert.equal(subs[1].granted, 0, "кредиты второй подписки ещё не начислены");
-    assert.equal(await getBalance(u), 40, "пока работает первая подписка, кредиты второй не приходят");
+    assert.equal(await getBalance(u), freelance.creditsPerMonth, "пока работает первая подписка, кредиты второй не приходят");
   });
 
   it("реферальная награда выплачивается и за первую покупку подписки, один раз", async () => {

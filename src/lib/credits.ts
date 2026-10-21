@@ -1,7 +1,7 @@
 import { appDb, writeTx } from "./db";
 
 export const UNLOCK_COST = 1;
-export const SIGNUP_BONUS = Math.max(0, parseInt(process.env.SIGNUP_BONUS_CREDITS ?? "5", 10) || 0);
+export const SIGNUP_BONUS = Math.max(0, parseInt(process.env.SIGNUP_BONUS_CREDITS ?? "10", 10) || 0);
 
 /** Сколько кредитов получает пригласивший, когда приглашённый впервые покупает кредиты. 0 выключает награду. */
 export const referralReward = () => Math.max(0, parseInt(process.env.REFERRAL_REWARD_CREDITS ?? "10", 10) || 0);

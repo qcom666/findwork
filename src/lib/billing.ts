@@ -10,9 +10,9 @@ export type Package = { id: string; title: string; credits: number; priceRub: nu
 
 // Цены и размеры пакетов: меняйте здесь.
 export const PACKAGES: Package[] = [
-  { id: "s20", title: "Старт", credits: 20, priceRub: 490 },
-  { id: "s60", title: "Стандарт", credits: 60, priceRub: 1190 },
-  { id: "s200", title: "Про", credits: 200, priceRub: 2990 },
+  { id: "s100", title: "Старт", credits: 100, priceRub: 490 },
+  { id: "s400", title: "Стандарт", credits: 400, priceRub: 1490 },
+  { id: "s1500", title: "Про", credits: 1500, priceRub: 3990 },
 ];
 
 export const getPackage = (id: string) => PACKAGES.find((p) => p.id === id);

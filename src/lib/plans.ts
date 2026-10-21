@@ -7,9 +7,9 @@ export type Plan = { id: string; title: string; tagline: string; creditsPerMonth
 export type Period = { months: number; discountPct: number };
 
 export const PLANS: Plan[] = [
-  { id: "freelance", title: "Фриланс", tagline: "Один-два проекта в месяц", creditsPerMonth: 40, priceMonthRub: 790 },
-  { id: "studio", title: "Студия", tagline: "Постоянный поток клиентов", creditsPerMonth: 120, priceMonthRub: 1990, popular: true },
-  { id: "agency", title: "Агентство", tagline: "Команда и большой объём", creditsPerMonth: 400, priceMonthRub: 4990 },
+  { id: "freelance", title: "Фриланс", tagline: "Для старта и теста ниши", creditsPerMonth: 400, priceMonthRub: 990 },
+  { id: "studio", title: "Студия", tagline: "Для активных продаж", creditsPerMonth: 1500, priceMonthRub: 2490, popular: true },
+  { id: "agency", title: "Агентство", tagline: "Для команд и потока", creditsPerMonth: 5000, priceMonthRub: 4990 },
 ];
 
 export const PERIODS: Period[] = [
