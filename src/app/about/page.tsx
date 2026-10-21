@@ -8,7 +8,7 @@ export default function About() {
       <section className="space-y-2">
         <h2 className="font-semibold">Источники</h2>
         <p className="text-muted">
-          Только открытые базы с разрешением на коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: их условия это запрещают.
+          Только открытые базы с разрешением на коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: условия Яндекса запрещают хранить и перепродавать данные, а разрешение 2ГИС мы подтвердить не смогли.
         </p>
         <ul className="list-disc space-y-1 pl-5 text-muted">
           <li>Overture Maps Places: лицензии CDLA-Permissive-2.0, CC0 и Apache-2.0.</li>

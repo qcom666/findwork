@@ -41,6 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nav: NavItem[] = [
     { href: "/leads", label: "Лиды" },
     { href: "/pricing", label: "Тарифы" },
+    { href: "/blog", label: "Блог" },
     { href: "/about", label: "О данных" },
     ...(user ? [{ href: "/my", label: "Мои лиды" }] : []),
   ];
@@ -92,6 +93,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ul className="space-y-1.5 text-muted">
                 <li><Link href="/leads" className="hover:text-ink">Каталог лидов</Link></li>
                 <li><Link href="/pricing" className="hover:text-ink">Тарифы</Link></li>
+                <li><Link href="/blog" className="hover:text-ink">Блог</Link></li>
                 <li><Link href="/about" className="hover:text-ink">О данных</Link></li>
               </ul>
             </div>

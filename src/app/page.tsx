@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RoiCalculator } from "@/components/RoiCalculator";
+import { ARTICLES, readingMinutes } from "@/content/articles";
 import { ScoreRing } from "@/components/ScoreRing";
 import { getCurrentUser } from "@/lib/auth";
 import { PACKAGES } from "@/lib/billing";
@@ -24,7 +25,7 @@ const FEATURES = [
 ];
 
 const FAQ = [
-  { q: "Откуда данные?", a: "Из открытых баз Overture Maps и OpenStreetMap, лицензии которых разрешают коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: их условия это запрещают." },
+  { q: "Откуда данные?", a: "Из открытых баз Overture Maps и OpenStreetMap, лицензии которых разрешают коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: условия Яндекса запрещают хранить и перепродавать данные, а разрешение 2ГИС мы подтвердить не смогли." },
   { q: "Что значит «сайта нет»?", a: "Ссылки на собственный сайт нет в открытых данных. Бывает, что сайт есть, а его просто не внесли, поэтому в карточке есть быстрая проверка на картах, а питч пишет «не нашёл ссылку», а не «у вас нет сайта»." },
   { q: "Можно ли писать заведениям?", a: "Да, но рекламу по телефону и e-mail по закону (ст. 18 «О рекламе») можно слать только с согласия получателя. Начинайте с короткого личного сообщения, не делайте массовых рассылок и сразу прекращайте писать тем, кто попросил." },
   { q: "За что я плачу?", a: "За открытие контактов одного заведения, вместе с проверкой сайта и питчем. Просматривать каталог, оценки и причины бесплатно. Кредиты не сгорают." },
@@ -188,6 +189,20 @@ export default async function Home() {
           Кредиты не сгорают. {SIGNUP_BONUS > 0 && `При регистрации дарим ${SIGNUP_BONUS}. `}
           <Link href="/pricing" className="text-accent hover:underline">Подробнее о тарифах</Link>
         </p>
+      </section>
+
+      <section className="space-y-6">
+        <SectionTitle title="Из блога" sub="Как искать клиентов среди местного бизнеса и писать им так, чтобы отвечали." />
+        <div className="grid gap-4 md:grid-cols-3">
+          {ARTICLES.slice(0, 3).map((a) => (
+            <Link key={a.slug} href={`/blog/${a.slug}`} className="card group flex flex-col p-5 transition-colors hover:border-accent">
+              <h3 className="font-semibold leading-snug group-hover:text-accent">{a.title}</h3>
+              <p className="mt-2 flex-1 text-sm text-muted">{a.description}</p>
+              <p className="mt-3 text-xs text-muted">{readingMinutes(a)} мин чтения</p>
+            </Link>
+          ))}
+        </div>
+        <Link href="/blog" className="text-sm text-accent hover:underline">Все статьи →</Link>
       </section>
 
       <section className="space-y-6">

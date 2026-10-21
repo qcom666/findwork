@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BatchPitch } from "@/components/BatchPitch";
+import { RowPitch } from "@/components/RowPitch";
 import { ScoreRing } from "@/components/ScoreRing";
 import { getCurrentUser } from "@/lib/auth";
 import { countByStatus, getCrm, isStatus, listUnlockedIdsByStatus, STATUS_LABEL, STATUSES, type StatusId } from "@/lib/crm";
 import { SITE_LABEL, formatPhone, plural } from "@/lib/format";
-import { getLabels, getLeadsUnlocked } from "@/lib/search";
+import { getPitches } from "@/lib/pitch-store";
+import { SERVICE_IDS, getLabels, getLeadsUnlocked } from "@/lib/search";
 
 export const metadata = { title: "Мои лиды" };
 
@@ -25,7 +28,10 @@ export default async function MyLeads({ searchParams }: { searchParams: Promise<
   const status: StatusId | "" = isStatus(raw) ? raw : "";
 
   const [counts, ids, labels] = await Promise.all([countByStatus(user.id), listUnlockedIdsByStatus(user.id, status, LIMIT), getLabels()]);
-  const [leads, crm] = await Promise.all([getLeadsUnlocked(ids), getCrm(user.id, ids)]);
+  const [leads, crm, pitches] = await Promise.all([getLeadsUnlocked(ids), getCrm(user.id, ids), getPitches(user.id, ids)]);
+  const services = SERVICE_IDS.map((id) => ({ id, label: labels.services[id] ?? id }));
+  // Пакетно пишем тем, у кого ещё нет питча и кому мы пока не писали.
+  const eligible = leads.filter((l) => !pitches.has(l.id) && (crm.get(l.id)?.status ?? "new") === "new").map((l) => l.id);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const shown = status ? (counts[status] ?? 0) : total;
 
@@ -54,6 +60,8 @@ export default async function MyLeads({ searchParams }: { searchParams: Promise<
           ))}
         </div>
       )}
+
+      {leads.length > 0 && <BatchPitch eligible={eligible} services={services} />}
 
       {leads.length === 0 ? (
         <div className="card border-dashed p-10 text-center text-muted">
@@ -86,6 +94,13 @@ export default async function MyLeads({ searchParams }: { searchParams: Promise<
                   {l.website ? <a href={l.website} target="_blank" rel="noopener noreferrer nofollow" className="block truncate text-accent hover:underline">{l.website.replace(/^https?:\/\/(www\.)?/, "")}</a> : SITE_LABEL[l.siteKind]}
                   {c?.note && <span className="mt-1 block truncate italic">{c.note}</span>}
                 </span>
+                {pitches.get(l.id) && (
+                  <RowPitch
+                    leadId={l.id} status={st} channel={pitches.get(l.id)!.channel} subject={pitches.get(l.id)!.subject}
+                    message={pitches.get(l.id)!.message} serviceLabel={labels.services[pitches.get(l.id)!.service] ?? pitches.get(l.id)!.service}
+                    source={pitches.get(l.id)!.source} phones={l.phones} email={l.email}
+                  />
+                )}
               </li>
             );
           })}

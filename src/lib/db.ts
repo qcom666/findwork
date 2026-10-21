@@ -81,6 +81,19 @@ const SCHEMA = [
      updated_at INTEGER NOT NULL,
      PRIMARY KEY (user_id, lead_id)
    )`,
+  `CREATE TABLE IF NOT EXISTS lead_pitches (
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     lead_id TEXT NOT NULL,
+     service TEXT NOT NULL,
+     channel TEXT NOT NULL,
+     subject TEXT NOT NULL DEFAULT '',
+     message TEXT NOT NULL,
+     followup TEXT NOT NULL DEFAULT '',
+     angle TEXT NOT NULL DEFAULT '',
+     source TEXT NOT NULL DEFAULT 'template',
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, lead_id)
+   )`,
   `CREATE TABLE IF NOT EXISTS rate_limits (
      key TEXT PRIMARY KEY,
      n INTEGER NOT NULL,

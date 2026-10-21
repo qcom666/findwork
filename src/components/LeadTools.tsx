@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { mailtoUrl, telegramUrl, telUrl, whatsappUrl } from "@/lib/send";
+import { useProfile, type Profile } from "./useProfile";
 
 type Finding = { level: "bad" | "warn" | "ok" | "info"; text: string };
 type Audit = { url: string; reachable: boolean; findings: Finding[]; ms?: number; builder?: string };
-type Profile = { name: string; skills: string; portfolio: string; priceFrom: string };
 type Pitch = { subject: string; message: string; followup: string; angle: string };
 type Service = { id: string; label: string };
+export type SavedPitchView = { service: string; channel: string; subject: string; message: string; followup: string; angle: string; source: "claude" | "template" };
 
 const CHANNELS = [
   { id: "telegram", label: "Telegram" },
@@ -23,35 +24,20 @@ const LEVEL = {
   info: { dot: "bg-muted/60", text: "text-muted" },
 } as const;
 
-const EMPTY: Profile = { name: "", skills: "", portfolio: "", priceFrom: "" };
-const KEY = "findwork.profile";
 
-export function LeadTools({ leadId, hasWebsite, services, phones, email }: { leadId: string; hasWebsite: boolean; services: Service[]; phones: string[]; email: string | null }) {
-  const [profile, setProfile] = useState<Profile>(EMPTY);
+export function LeadTools({ leadId, hasWebsite, services, phones, email, saved }: { leadId: string; hasWebsite: boolean; services: Service[]; phones: string[]; email: string | null; saved?: SavedPitchView | null }) {
+  const [profile, updateProfile] = useProfile();
   const [audit, setAudit] = useState<Audit | null>(null);
   const [auditing, setAuditing] = useState(false);
   const [auditErr, setAuditErr] = useState("");
-  const [service, setService] = useState(services[0]?.id ?? "site");
-  const [channel, setChannel] = useState("telegram");
+  const [service, setService] = useState(saved?.service ?? services[0]?.id ?? "site");
+  const [channel, setChannel] = useState(saved?.channel ?? "telegram");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [pitch, setPitch] = useState<Pitch | null>(null);
+  const [pitch, setPitch] = useState<Pitch | null>(saved ? { subject: saved.subject, message: saved.message, followup: saved.followup, angle: saved.angle } : null);
   const [note, setNote] = useState("");
-  const [source, setSource] = useState<"claude" | "template" | "">("");
-  const [pitchChannel, setPitchChannel] = useState("telegram");
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setProfile({ ...EMPTY, ...JSON.parse(raw) });
-    } catch {}
-  }, []);
-
-  function updateProfile(patch: Partial<Profile>) {
-    const next = { ...profile, ...patch };
-    setProfile(next);
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
-  }
+  const [source, setSource] = useState<"claude" | "template" | "">(saved?.source ?? "");
+  const [pitchChannel, setPitchChannel] = useState(saved?.channel ?? "telegram");
 
   async function runAudit() {
     setAuditing(true); setAuditErr("");
@@ -197,11 +183,12 @@ function Block({ title, text }: { title: string; text: string }) {
 }
 
 /** Кнопки отправки под готовым текстом. После клика лид сам получает этап «Написал». */
-function SendActions({ leadId, channel, pitch, phones, email }: { leadId: string; channel: string; pitch: Pitch; phones: string[]; email: string | null }) {
+export function SendActions({ leadId, channel, pitch, phones, email, onSent }: { leadId: string; channel: string; pitch: { subject: string; message: string }; phones: string[]; email: string | null; onSent?: () => void }) {
   const [copied, setCopied] = useState(false);
 
   function sent() {
-    window.dispatchEvent(new CustomEvent("fw:contacted", { detail: { leadId } }));
+    if (onSent) onSent();
+    else window.dispatchEvent(new CustomEvent("fw:contacted", { detail: { leadId } }));
   }
 
   const wa = whatsappUrl(phones, pitch.message);

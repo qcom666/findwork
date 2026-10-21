@@ -10,6 +10,7 @@ import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { getCrm, STATUSES } from "@/lib/crm";
 import { dbReady } from "@/lib/db";
 import { SITE_LABEL, formatPhone, reasons, sourceLabel } from "@/lib/format";
+import { getPitches } from "@/lib/pitch-store";
 import { getLabels, getLead } from "@/lib/search";
 
 const DOT = { good: "bg-good", warn: "bg-warn", muted: "bg-muted/50" } as const;
@@ -28,10 +29,12 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const lead = await getLead(decodeURIComponent(id), user?.id);
   if (!lead) notFound();
 
-  const [labels, crm] = await Promise.all([
+  const [labels, crm, pitches] = await Promise.all([
     getLabels(),
     user && lead.unlocked ? getCrm(user.id, [lead.id]) : Promise.resolve(null),
+    user && lead.unlocked ? getPitches(user.id, [lead.id]) : Promise.resolve(null),
   ]);
+  const savedPitch = pitches?.get(lead.id) ?? null;
   const services = lead.services.map((s) => ({ id: s, label: labels.services[s] ?? s }));
   const mapQuery = encodeURIComponent(`${lead.name} ${lead.city ?? ""}`.trim());
   const lock = <span className="text-muted" title="Откроется за кредит" aria-label="скрыто">🔒 </span>;
@@ -163,7 +166,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </div>
 
         {lead.unlocked ? (
-          <LeadTools leadId={lead.id} hasWebsite={lead.has.website} services={services} phones={lead.phones} email={lead.email} />
+          <LeadTools leadId={lead.id} hasWebsite={lead.has.website} services={services} phones={lead.phones} email={lead.email} saved={savedPitch} />
         ) : (
           <UnlockPanel leadId={lead.id} loggedIn={!!user} balance={user?.balance ?? 0} cost={UNLOCK_COST} bonus={SIGNUP_BONUS} />
         )}
