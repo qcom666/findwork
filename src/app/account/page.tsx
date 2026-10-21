@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/Small";
 import { CopyField } from "@/components/CopyField";
+import { DeleteAccount } from "@/components/DeleteAccount";
 import { TelegramLinkBox } from "@/components/TelegramLinkBox";
 import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
@@ -20,7 +21,7 @@ import { getReferralInfo } from "@/lib/users";
 export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
-const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", exclusive: "Эксклюзив на заведение", report: "Отчёт для клиента", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", exclusive: "Эксклюзив на заведение", report: "Отчёт для клиента", account_deleted: "Аккаунт удалён", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
 const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
@@ -138,6 +139,8 @@ export default async function Account() {
           ))}
         </ul>
       </section>
+
+      <DeleteAccount hasPassword={user.hasPassword} balance={balance} />
     </div>
   );
 }

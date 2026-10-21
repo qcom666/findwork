@@ -14,7 +14,11 @@ export async function POST(req: Request) {
   const b = await readJson<{ token?: string; accept?: boolean; consent?: boolean; confirm?: boolean }>(req);
   if (!b || typeof b.token !== "string") return json({ error: "Некорректный запрос" }, 400);
   const ip = clientIp(req);
-  if (!(await allow(`tgbot-poll:${ip}`, 500, 900))) return json({ error: "Слишком много запросов, подождите" }, 429);
+  // Опрос идёт раз в две секунды, то есть около 450 запросов за 15 минут на один вход. Считаем и по запросу входа, и по адресу
+  // (с запасом: за одним адресом могут сидеть много людей, например офис).
+  if (!(await allow(`tgbot-poll:${b.token.slice(0, 16)}`, 500, 900)) || !(await allow(`tgbot-poll-ip:${ip}`, 5000, 900))) {
+    return json({ error: "Слишком много запросов, подождите" }, 429);
+  }
 
   const user = await getCurrentUser();
   const r = await pollLoginRequest(b.token, {

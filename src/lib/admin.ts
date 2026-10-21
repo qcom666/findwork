@@ -30,7 +30,7 @@ export async function searchUsers(q: string, limit = 50, opts: { onlyBanned?: bo
   const match = raw
     ? `(u.email LIKE ? ESCAPE '\\' OR u.tg_username LIKE ? ESCAPE '\\' OR ${names.map(() => "u.display_name LIKE ? ESCAPE '\\'").join(" OR ")})`
     : "";
-  const where = [match, opts.onlyBanned ? "u.banned_at IS NOT NULL" : ""].filter(Boolean).join(" AND ");
+  const where = ["u.deleted_at IS NULL", match, opts.onlyBanned ? "u.banned_at IS NOT NULL" : ""].filter(Boolean).join(" AND ");
   const r = await db.execute({
     sql: `SELECT u.id, u.email, u.tg_username, u.display_name, u.balance, u.created_at, u.banned_at, u.ban_reason,
                  (SELECT count(*) FROM unlocks k WHERE k.user_id = u.id) AS unlocks,

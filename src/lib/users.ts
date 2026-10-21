@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { SIGNUP_BONUS } from "./credits";
+import { identityHashes } from "./account-delete";
 import { appDb, writeTx } from "./db";
 import { tgEmail, type TgUser } from "./telegram";
 
@@ -35,14 +36,18 @@ export async function createUser(email: string, passHash: string, refCode?: stri
           const r = (await tx.execute({ sql: "SELECT id FROM users WHERE ref_code = ?", args: [refCode] })).rows[0];
           if (r) referrer = Number(r.id);
         }
+        // Приветственные кредиты один раз на человека: если он уже удалял аккаунт, бонус не начисляется.
+        const hashes = identityHashes(mail, tg?.id ?? null);
+        const returning = hashes.length > 0 && (await tx.execute({ sql: `SELECT 1 FROM deleted_identities WHERE hash IN (${hashes.map(() => "?").join(",")})`, args: hashes })).rows.length > 0;
+        const bonus = returning ? 0 : SIGNUP_BONUS;
         const ins = await tx.execute({
           sql: `INSERT INTO users(email, pass_hash, balance, created_at, ref_code, referred_by, consent_at, consent_ver, tg_id, tg_username, display_name)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [mail, passHash, SIGNUP_BONUS, t, mine, referrer, consentVersion ? t : null, consentVersion ?? null, tg?.id ?? null, tg?.username ?? null, tg?.name ?? null],
+          args: [mail, passHash, bonus, t, mine, referrer, consentVersion ? t : null, consentVersion ?? null, tg?.id ?? null, tg?.username ?? null, tg?.name ?? null],
         });
         const userId = Number(ins.lastInsertRowid);
-        if (SIGNUP_BONUS > 0) {
-          await tx.execute({ sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'signup_bonus', NULL, ?)", args: [userId, SIGNUP_BONUS, t] });
+        if (bonus > 0) {
+          await tx.execute({ sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'signup_bonus', NULL, ?)", args: [userId, bonus, t] });
         }
         return { value: { ok: true, userId } };
       });
