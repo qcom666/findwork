@@ -1,4 +1,5 @@
 import { cached } from "./cache";
+import { getAllCities } from "./seo";
 import { unlockedAmong } from "./credits";
 import { leadsDb } from "./db";
 import { maskEmail, maskPhone, socialNames } from "./mask";
@@ -165,11 +166,33 @@ function where(p: Params): { sql: string; args: (string | number)[] } {
 
 const rows = (rs: { rows: unknown[] }) => rs.rows as unknown as Row[];
 
+/**
+ * Самые частые выдачи (весь каталог, один город или одна ниша с настройками по умолчанию) считаем по готовым
+ * таблицам niches и cities, а не обходом 400 тысяч строк в удалённой базе.
+ */
+async function fastTotal(p: Params): Promise<number | null> {
+  if (p.site !== "need" || p.chains || p.phone || p.email || p.social || p.service || p.minScore || p.q) return null;
+  if (p.city && p.niche) return null;
+  if (p.niche) return (await getNiches()).find((n) => n.id === p.niche)?.nNeed ?? null;
+  if (p.city) return (await getAllCities()).find((c) => c.name === p.city)?.nNeed ?? null;
+  return (await getNiches()).reduce((a, n) => a + n.nNeed, 0);
+}
+
+async function totalFor(p: Params, sql: string, args: (string | number)[]): Promise<number> {
+  // Число найденных не меняется между сборками базы, поэтому листание страниц не пересчитывает его заново.
+  return cached(`total:${sql}:${JSON.stringify(args)}`, 10 * 60 * 1000, async () => {
+    const fast = await fastTotal(p);
+    if (fast !== null) return fast;
+    const r = await leadsDb().execute({ sql: `SELECT count(*) AS n FROM places p ${sql}`, args });
+    return Number(r.rows[0].n);
+  });
+}
+
 export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number }> {
   const db = leadsDb();
   const { sql, args } = where(p);
-  const [count, page] = await Promise.all([
-    db.execute({ sql: `SELECT count(*) AS n FROM places p ${sql}`, args }),
+  const [total, page] = await Promise.all([
+    totalFor(p, sql, args),
     db.execute({
       sql: `SELECT p.* FROM places p ${sql} ORDER BY ${p.sort === "name" ? "p.name" : "p.score DESC"}, p.rowid LIMIT ? OFFSET ?`,
       args: [...args, PAGE_SIZE, (p.page - 1) * PAGE_SIZE],
@@ -177,7 +200,7 @@ export async function searchLeads(p: Params, userId?: number | null): Promise<{ 
   ]);
   const list = rows(page);
   const open = await unlockedAmong(userId, list.map((r) => r.id));
-  return { leads: list.map((r) => toLead(r, open.has(r.id))), total: Number(count.rows[0].n) };
+  return { leads: list.map((r) => toLead(r, open.has(r.id))), total };
 }
 
 /** Заведение для показа пользователю: контакты только если он их открыл. */

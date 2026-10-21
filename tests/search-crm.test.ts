@@ -37,6 +37,8 @@ before(async () => {
   await db.batch(
     [
       `CREATE TABLE places (${COLS.split(",").map((c) => c).join(",")})`,
+      `CREATE TABLE niches (id TEXT PRIMARY KEY, label TEXT, n INTEGER, n_need INTEGER)`,
+      `CREATE TABLE cities (name TEXT PRIMARY KEY, n INTEGER, n_need INTEGER)`,
       `CREATE VIRTUAL TABLE places_fts USING fts5(name, content='places', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2')`,
     ],
     "write",
@@ -45,6 +47,9 @@ before(async () => {
     await db.execute({ sql: `INSERT INTO places (${COLS}) VALUES (${COLS.split(",").map(() => "?").join(",")})`, args: COLS.split(",").map((c) => r[c] ?? null) });
   }
   await db.execute("INSERT INTO places_fts(rowid, name) SELECT rowid, name FROM places");
+  // справочники так же, как их считает ingest/build_db.py
+  await db.execute("INSERT INTO niches SELECT niche, niche, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) FROM places GROUP BY niche");
+  await db.execute("INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) FROM places GROUP BY city");
   appDir = mkdtempSync(path.join(tmpdir(), "fw-crm-"));
   await __resetAppDbForTests("file:" + path.join(appDir, "app.db"));
 });
@@ -93,6 +98,18 @@ describe("фильтры каталога", () => {
   it("кавычки и спецсимволы в запросе не ломают поиск", async () => {
     assert.deepEqual(await ids({ q: '"; DROP TABLE places; --' }), []);
     assert.equal((await ids({})).length, 4);
+  });
+});
+
+describe("подсчёт найденных", () => {
+  it("быстрый подсчёт по справочникам совпадает с честным count(*)", async () => {
+    const real = createClient({ url: process.env.LEADS_DB_URL! });
+    const count = async (where: string) => Number((await real.execute(`SELECT count(*) AS n FROM places WHERE site_kind IN ('none','social','builder') AND is_chain = 0 ${where}`)).rows[0].n);
+    assert.equal((await searchLeads(parseParams({}))).total, await count(""));
+    assert.equal((await searchLeads(parseParams({ city: "Казань" }))).total, await count("AND city = 'Казань'"));
+    assert.equal((await searchLeads(parseParams({ niche: "medical" }))).total, await count("AND niche = 'medical'"));
+    assert.equal((await searchLeads(parseParams({ city: "Казань", niche: "food" }))).total, await count("AND city = 'Казань' AND niche = 'food'"));
+    assert.equal((await searchLeads(parseParams({ city: "Нет такого" }))).total, 0, "город вне справочника считается честно");
   });
 });
 
