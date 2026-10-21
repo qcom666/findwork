@@ -42,6 +42,18 @@ export function csvCell(v: string | number | null | undefined): string {
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Короткие названия услуг для фильтров. Полные лежат в таблице services. */
+export const SERVICE_SHORT: Record<string, string> = {
+  site: "Сайты",
+  redesign: "Редизайн",
+  qr_menu: "QR-меню",
+  booking: "Онлайн-запись",
+  smm: "Соцсети",
+  logo: "Лого и стиль",
+  seo: "SEO и карты",
+  shop: "Интернет-магазины",
+};
+
 export function sourceLabel(s: string): string {
   if (s === "osm") return "OpenStreetMap";
   if (s.startsWith("overture:")) return "Overture Maps";

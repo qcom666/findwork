@@ -7,7 +7,7 @@ import { getLedger } from "@/lib/credits";
 import { plural } from "@/lib/format";
 import { getLeadsUnlocked } from "@/lib/search";
 
-export const metadata = { title: "Аккаунт — FindWork" };
+export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
 const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид" };
@@ -23,7 +23,7 @@ export default async function Account() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5">
+      <section className="flex flex-wrap items-center justify-between gap-4 card p-5">
         <div>
           <p className="text-sm text-muted">{user.email}</p>
           <p className="mt-1 text-3xl font-semibold">
@@ -41,7 +41,7 @@ export default async function Account() {
         {payments.length === 0 ? (
           <p className="text-sm text-muted">Покупок пока не было.</p>
         ) : (
-          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface text-sm">
+          <ul className="divide-y divide-line overflow-hidden card text-sm">
             {payments.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 <span>{p.credits} кредитов · {p.amountRub.toLocaleString("ru-RU")} ₽</span>
@@ -54,7 +54,7 @@ export default async function Account() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">История кредитов</h2>
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface text-sm">
+        <ul className="divide-y divide-line overflow-hidden card text-sm">
           {ledger.map((l) => (
             <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <span className="min-w-0 truncate">

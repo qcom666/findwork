@@ -2,7 +2,7 @@ import { PACKAGES } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Оферта — FindWork" };
+export const metadata = { title: "Оферта" };
 
 export default function Terms() {
   return (

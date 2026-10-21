@@ -73,6 +73,14 @@ const SCHEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS ix_payments_user ON payments(user_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS ix_payments_provider ON payments(provider_payment_id)`,
+  `CREATE TABLE IF NOT EXISTS lead_notes (
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     lead_id TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'new',
+     note TEXT NOT NULL DEFAULT '',
+     updated_at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, lead_id)
+   )`,
   `CREATE TABLE IF NOT EXISTS rate_limits (
      key TEXT PRIMARY KEY,
      n INTEGER NOT NULL,

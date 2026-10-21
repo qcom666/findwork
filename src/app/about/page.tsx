@@ -1,4 +1,4 @@
-export const metadata = { title: "О данных — FindWork" };
+export const metadata = { title: "О данных" };
 
 export default function About() {
   return (

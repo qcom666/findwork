@@ -156,3 +156,33 @@ def lead_score(site_kind, has_phone, has_email, has_social, is_chain, confidence
     if is_chain:
         s -= 45
     return max(0, min(100, int(round(s))))
+
+
+# ---------------------------------------------------------------- города
+
+# В Overture часть городов записана латиницей. Сводим к русским названиям, чтобы в фильтре не было дублей.
+CITY_RU = {
+    "Moscow": "Москва", "Moskva": "Москва", "Moskau": "Москва",
+    "Saint Petersburg": "Санкт-Петербург", "St Petersburg": "Санкт-Петербург", "Sankt-Peterburg": "Санкт-Петербург",
+    "Saint-Petersburg": "Санкт-Петербург", "St.Petersburg": "Санкт-Петербург", "St. Petersburg": "Санкт-Петербург",
+    "Pietari": "Санкт-Петербург",
+    "Yekaterinburg": "Екатеринбург", "Ufa": "Уфа", "Samara": "Самара", "Kaliningrad": "Калининград",
+    "Novosibirsk": "Новосибирск", "Chelyabinsk": "Челябинск", "Sochi": "Сочи", "Adler": "Сочи",
+    "Kazan": "Казань", "Kazan’": "Казань", "Krasnodar": "Краснодар", "Nizhny Novgorod": "Нижний Новгород",
+    "Perm": "Пермь", "Khimki": "Химки", "Vladivostok": "Владивосток", "Voronezh": "Воронеж", "Tolyatti": "Тольятти",
+    "Irkutsk": "Иркутск", "Tomsk": "Томск", "Tver": "Тверь", "Tver'": "Тверь", "Krasnogorsk": "Красногорск",
+    "Krasnoyarsk": "Красноярск", "Volgograd": "Волгоград", "Naberezhnye Chelny": "Набережные Челны",
+    "Nizhnevartovsk": "Нижневартовск", "Tula": "Тула", "Rostov-on-Don": "Ростов-на-Дону", "Rostov": "Ростов-на-Дону",
+    "Saratov": "Саратов", "Tyumen": "Тюмень", "Belgorod": "Белгород", "Petrozavodsk": "Петрозаводск",
+    "Odintsovo": "Одинцово", "Yaroslavl": "Ярославль", "Mytishchi": "Мытищи", "Surgut": "Сургут", "Barnaul": "Барнаул",
+    "Yakutsk": "Якутск", "Murmansk": "Мурманск", "Cheboksary": "Чебоксары", "Omsk": "Омск", "Gelendzhik": "Геленджик",
+    "Kaluga": "Калуга", "Khabarovsk": "Хабаровск", "Izhevsk": "Ижевск", "Kemerovo": "Кемерово", "Kurgan": "Курган",
+    "Lyubertsy": "Люберцы", "Makhachkala": "Махачкала", "Pyatigorsk": "Пятигорск", "Stavropol": "Ставрополь",
+    "Syktyvkar": "Сыктывкар", "Ulyanovsk": "Ульяновск", "Pushkino": "Пушкино", "Ryazan": "Рязань",
+    "Vladikavkaz": "Владикавказ", "Vladimir": "Владимир", "Kirov": "Киров", "Smolensk": "Смоленск",
+    "Dmitrov": "Дмитров", "Istra": "Истра", "Domodedove": "Домодедово", "Domodedovo": "Домодедово",
+}
+
+
+def ru_city(name):
+    return CITY_RU.get(name, name) if name else name

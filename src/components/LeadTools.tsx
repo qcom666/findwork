@@ -86,7 +86,7 @@ export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; ha
   return (
     <div className="space-y-5">
       {hasWebsite && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Проверка сайта</h2>
@@ -110,7 +110,7 @@ export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; ha
         </section>
       )}
 
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="card p-5">
         <h2 className="text-sm font-semibold">Питч</h2>
         <p className="text-xs text-muted">Первое сообщение владельцу. Сначала расскажите о себе, это сохранится в браузере.</p>
 

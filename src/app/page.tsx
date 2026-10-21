@@ -1,205 +1,215 @@
 import Link from "next/link";
+import { ScoreRing } from "@/components/ScoreRing";
 import { getCurrentUser } from "@/lib/auth";
-import { SIGNUP_BONUS } from "@/lib/credits";
+import { PACKAGES } from "@/lib/billing";
+import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
-import { SITE_LABEL, plural, scoreTone } from "@/lib/format";
-import {
-  PAGE_SIZE, getCities, getLabels, getMeta, getNiches, parseParams, searchLeads, toQuery, type Lead, type Params,
-} from "@/lib/search";
+import { SERVICE_SHORT, plural } from "@/lib/format";
+import { getNiches, getStats, type Option, type Stats } from "@/lib/search";
 
-type SP = Promise<Record<string, string | string[] | undefined>>;
+const STEPS = [
+  { n: "1", title: "Выберите, что вы делаете", text: "Сайты, QR-меню, онлайн-запись, соцсети, логотипы. Каталог сразу сужается до подходящих заведений." },
+  { n: "2", title: "Оцените лид бесплатно", text: "Оценка от 0 до 100, причины и список услуг, которые стоит предложить, видны без оплаты." },
+  { n: "3", title: "Откройте контакты", text: `За ${UNLOCK_COST} кредит: телефон, e-mail, соцсети, ссылка на сайт и проверка сайта на слабые места.` },
+  { n: "4", title: "Отправьте питч", text: "Claude пишет первое сообщение под заведение и ваш профиль. Вы правите и отправляете сами." },
+];
 
-const TONE = {
-  good: "bg-good-soft text-good",
-  warn: "bg-warn-soft text-warn",
-  muted: "bg-line/60 text-muted",
-} as const;
+const FEATURES = [
+  { title: "Честная оценка", text: "Видно, из чего сложилась оценка: нет сайта, есть телефон, не сеть, ниша с высоким чеком. Никаких загадочных баллов." },
+  { title: "Проверка сайта", text: "Открываем сайт заведения и ищем слабые места: HTTPS, мобильная версия, телефон одним нажатием, заброшенность." },
+  { title: "Питч без воды", text: "Короткий текст с одним предложением и одним вопросом. Не выдумывает факты и не обещает «рост продаж в 3 раза»." },
+  { title: "Статусы и заметки", text: "Отмечайте, кому написали, кто ответил и с кем сделка. Все открытые лиды выгружаются в CSV." },
+];
 
-const SITE_TONE = {
-  none: "bg-good-soft text-good",
-  social: "bg-good-soft text-good",
-  builder: "bg-warn-soft text-warn",
-  real: "bg-line/60 text-muted",
-} as const;
+const FAQ = [
+  { q: "Откуда данные?", a: "Из открытых баз Overture Maps и OpenStreetMap, лицензии которых разрешают коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: их условия это запрещают." },
+  { q: "Что значит «сайта нет»?", a: "Ссылки на собственный сайт нет в открытых данных. Бывает, что сайт есть, а его просто не внесли, поэтому в карточке есть быстрая проверка на картах, а питч пишет «не нашёл ссылку», а не «у вас нет сайта»." },
+  { q: "Можно ли писать заведениям?", a: "Да, но рекламу по телефону и e-mail по закону (ст. 18 «О рекламе») можно слать только с согласия получателя. Начинайте с короткого личного сообщения, не делайте массовых рассылок и сразу прекращайте писать тем, кто попросил." },
+  { q: "За что я плачу?", a: "За открытие контактов одного заведения, вместе с проверкой сайта и питчем. Просматривать каталог, оценки и причины бесплатно. Кредиты не сгорают." },
+  { q: "Сколько данных в базе?", a: "Сотни тысяч заведений в крупных городах. Это меньше, чем в закрытых картах, зато данные открытые и честные. Каталог растёт с каждым обновлением." },
+];
 
-export default async function Home({ searchParams }: { searchParams: SP }) {
-  if (!(await dbReady())) return <NoDb />;
-
-  const p = parseParams(await searchParams);
-  const user = await getCurrentUser();
-  const [{ leads, total }, cities, niches, labels, meta] = await Promise.all([
-    searchLeads(p, user?.id),
-    getCities(250),
-    getNiches(),
-    getLabels(),
-    getMeta(),
+export default async function Home() {
+  const ready = await dbReady();
+  const [stats, niches, user] = await Promise.all([
+    ready ? getStats().catch(() => null) : null,
+    ready ? getNiches().catch(() => [] as Option[]) : ([] as Option[]),
+    getCurrentUser(),
   ]);
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const topNiches = niches.slice(0, 8);
 
   return (
-    <div className="space-y-6">
-      <section className="max-w-2xl">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Заведения, которым нужен сайт</h1>
-        <p className="mt-2 text-muted">
-          Открытые данные по России: находим бизнесы без сайта, оцениваем, насколько им нужна ваша услуга, и пишем
-          первое сообщение. В базе {Number(meta.total).toLocaleString("ru-RU")} заведений.
-        </p>
-        {!user && (
-          <p className="mt-3 text-sm">
-            <Link href="/signup" className="font-medium text-accent hover:underline">Зарегистрируйтесь</Link>
-            {SIGNUP_BONUS > 0 ? `, ${SIGNUP_BONUS} кредитов в подарок` : ""}: контакты открываются за кредит.
-          </p>
-        )}
+    <div className="space-y-20 pb-8">
+      <section className="pb-4 pt-8 sm:pt-14">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+          <div>
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-good" /> Для фрилансеров и небольших студий
+            </p>
+            <h1 className="text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
+              Клиенты среди заведений, у которых ещё нет сайта
+            </h1>
+            <p className="mt-5 max-w-xl text-lg text-muted">
+              {stats ? `${stats.places.toLocaleString("ru-RU")} заведений России на открытых данных. ` : ""}
+              FindWork находит тех, кому нужен сайт, QR-меню, онлайн-запись или соцсети, оценивает лид и пишет первое сообщение.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/leads" className="btn btn-primary">Смотреть лиды</Link>
+              {!user && (
+                <Link href="/signup" className="btn btn-ghost">
+                  {SIGNUP_BONUS > 0 ? `Получить ${SIGNUP_BONUS} кредитов` : "Регистрация"}
+                </Link>
+              )}
+            </div>
+            <p className="mt-4 text-sm text-muted">Без подписки: платите только за открытые контакты.</p>
+          </div>
+
+          <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true">
+            <div className="card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Пример карточки</p>
+                  <p className="mt-1 text-lg font-bold">Студия «Лотос»</p>
+                  <p className="text-sm text-muted">Салоны красоты · Ваш город</p>
+                </div>
+                <ScoreRing score={84} size="3.25rem" />
+              </div>
+              <dl className="mt-5 space-y-2.5 text-sm">
+                <div className="flex justify-between gap-4"><dt className="text-muted">Сайт</dt><dd><span className="rounded-full bg-good-soft px-2.5 py-0.5 text-xs font-semibold text-good">Только соцсети</span></dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted">Телефон</dt><dd>🔒 +7 (900) •••-••-••</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted">E-mail</dt><dd>🔒 •••@mail.ru</dd></div>
+              </dl>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {["Сайты", "Онлайн-запись", "SEO и карты"].map((t) => (
+                  <span key={t} className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">{t}</span>
+                ))}
+              </div>
+              <div className="btn btn-primary mt-5 w-full">Открыть контакты за 1 кредит</div>
+            </div>
+            <div className="card absolute bottom-0 left-4 hidden w-64 p-4 sm:block">
+              <p className="text-xs font-semibold text-muted">Питч</p>
+              <p className="mt-1 text-sm leading-snug">Здравствуйте! Не нашёл ссылку на ваш сайт в открытых источниках. Могу взять это на себя…</p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <form method="GET" className="rounded-2xl border border-line bg-surface p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Labeled label="Город">
-            <select name="city" defaultValue={p.city} className="field">
-              <option value="">Вся Россия</option>
-              {cities.map((c) => (
-                <option key={c.id} value={c.id}>{c.label} · {c.nNeed.toLocaleString("ru-RU")}</option>
-              ))}
-            </select>
-          </Labeled>
-          <Labeled label="Ниша">
-            <select name="niche" defaultValue={p.niche} className="field">
-              <option value="">Любая</option>
-              {niches.map((n) => (
-                <option key={n.id} value={n.id}>{n.label}</option>
-              ))}
-            </select>
-          </Labeled>
-          <Labeled label="Сайт">
-            <select name="site" defaultValue={p.site} className="field">
-              <option value="need">Нужен сайт (нет, соцсети, конструктор)</option>
-              <option value="none">Сайта нет совсем</option>
-              <option value="social">Только соцсети</option>
-              <option value="builder">Сайт на конструкторе</option>
-              <option value="real">Есть свой сайт</option>
-              <option value="any">Любой</option>
-            </select>
-          </Labeled>
-          <Labeled label="Название">
-            <input name="q" defaultValue={p.q} placeholder="Например, «стом»" className="field" />
-          </Labeled>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Check name="phone" label="Только с телефоном" defaultChecked={p.phone} />
-          <Check name="email" label="Только с e-mail" defaultChecked={p.email} />
-          <Check name="chains" label="Показывать сети" defaultChecked={p.chains} />
-          <button type="submit" className="ml-auto rounded-lg bg-accent px-5 py-2 text-sm font-medium text-accent-ink hover:opacity-90">
-            Найти
-          </button>
-        </div>
-      </form>
-
-      <div className="text-sm text-muted">
-        Найдено <b className="text-ink">{total.toLocaleString("ru-RU")}</b> {plural(total, "заведение", "заведения", "заведений")}
-        {pages > 1 ? ` · страница ${p.page} из ${pages.toLocaleString("ru-RU")}` : ""}
-      </div>
-
-      {leads.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line p-10 text-center text-muted">
-          Ничего не нашлось. Попробуйте убрать часть фильтров.
-        </div>
-      ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-          {leads.map((l) => (
-            <Row key={l.id} l={l} niche={labels.niches[l.niche] ?? l.niche} />
-          ))}
-        </ul>
+      {stats && (
+        <section aria-label="Цифры" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Stat value={stats.places} label="заведений в базе" />
+          <Stat value={stats.candidates} label="кандидатов без своего сайта" />
+          <Stat value={stats.cities} label={plural(stats.cities, "город", "города", "городов")} />
+          <Stat value={stats.niches} label={plural(stats.niches, "ниша", "ниши", "ниш")} />
+        </section>
       )}
 
-      {pages > 1 && <Pager p={p} pages={pages} />}
+      <section className="space-y-8">
+        <SectionTitle title="Как это работает" sub="От выбора ниши до отправленного сообщения за несколько минут." />
+        <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {STEPS.map((s) => (
+            <li key={s.n} className="card p-5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-sm font-bold text-accent">{s.n}</span>
+              <h3 className="mt-4 font-semibold">{s.title}</h3>
+              <p className="mt-1.5 text-sm text-muted">{s.text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {topNiches.length > 0 && (
+        <section className="space-y-8">
+          <SectionTitle title="Популярные ниши" sub="Столько заведений без собственного сайта сейчас в каталоге." />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {topNiches.map((n) => (
+              <Link key={n.id} href={`/leads?niche=${n.id}`} className="card group p-4 transition-colors hover:border-accent">
+                <p className="font-semibold group-hover:text-accent">{n.label}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">{n.nNeed.toLocaleString("ru-RU")}</p>
+                <p className="text-xs text-muted">лидов без своего сайта</p>
+              </Link>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(SERVICE_SHORT).map(([id, label]) => (
+              <Link key={id} href={`/leads?service=${id}`} className="chip">{label}</Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-8">
+        <SectionTitle title="Что внутри" sub="Всё, чтобы быстро найти клиента и не потерять переписку." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="card p-5">
+              <h3 className="font-semibold">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-muted">{f.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-8">
+        <SectionTitle title="Тарифы" sub={`Платите за открытые контакты. ${UNLOCK_COST} кредит — одно заведение со всеми инструментами.`} />
+        <div className="grid gap-4 md:grid-cols-3">
+          {PACKAGES.map((p, i) => (
+            <div key={p.id} className={`card p-5 ${i === 1 ? "!border-accent" : ""}`}>
+              <p className="font-semibold">{p.title}</p>
+              <p className="mt-3 text-3xl font-bold tabular-nums">{p.priceRub.toLocaleString("ru-RU")} ₽</p>
+              <p className="mt-1 text-sm text-muted">
+                {p.credits} {plural(p.credits, "кредит", "кредита", "кредитов")} · {(p.priceRub / p.credits).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ₽ за лид
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="text-sm text-muted">
+          Кредиты не сгорают. {SIGNUP_BONUS > 0 && `При регистрации дарим ${SIGNUP_BONUS}. `}
+          <Link href="/pricing" className="text-accent hover:underline">Подробнее о тарифах</Link>
+        </p>
+      </section>
+
+      <section className="space-y-6">
+        <SectionTitle title="Вопросы и ответы" />
+        <div className="card divide-y divide-line">
+          {FAQ.map((f) => (
+            <details key={f.q} className="group px-5 py-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                {f.q}
+                <span className="text-muted transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+              </summary>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="card hero-bg px-6 py-12 text-center">
+        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Найдите первого клиента сегодня</h2>
+        <p className="mx-auto mt-2 max-w-lg text-muted">Посмотрите каталог без регистрации. Когда найдёте подходящее заведение, откройте контакты.</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link href="/leads" className="btn btn-primary">Смотреть лиды</Link>
+          {!user && <Link href="/signup" className="btn btn-ghost">Создать аккаунт</Link>}
+        </div>
+      </section>
     </div>
   );
 }
 
-function Row({ l, niche }: { l: Lead; niche: string }) {
+function SectionTitle({ title, sub }: { title: string; sub?: string }) {
   return (
-    <li>
-      <Link
-        href={`/lead/${encodeURIComponent(l.id)}`}
-        className="grid grid-cols-[2.75rem_1fr] items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-bg sm:grid-cols-[2.75rem_1fr_11.5rem_11rem]"
-      >
-        <span className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold ${TONE[scoreTone(l.score)]}`} title="Оценка лида, 0–100">
-          {l.score}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate font-medium">{l.name}</span>
-          <span className="block truncate text-sm text-muted">
-            {niche}{l.city ? ` · ${l.city}` : ""}{l.address ? ` · ${l.address}` : ""}
-          </span>
-        </span>
-        <span className="col-start-2 sm:col-start-auto">
-          <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${SITE_TONE[l.siteKind]}`}>{SITE_LABEL[l.siteKind]}</span>
-        </span>
-        <span className="col-start-2 flex flex-wrap items-center gap-1.5 text-xs sm:col-start-auto sm:justify-end">
-          <Chip on={l.has.phone}>тел</Chip>
-          <Chip on={l.has.email}>e-mail</Chip>
-          <Chip on={l.has.social}>соцсети</Chip>
-          {l.unlocked && <span className="whitespace-nowrap rounded-md bg-accent-soft px-1.5 py-0.5 text-accent">открыт</span>}
-        </span>
-      </Link>
-    </li>
-  );
-}
-
-function Chip({ on, children }: { on: boolean; children: React.ReactNode }) {
-  return (
-    <span className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 ${on ? "border-line text-ink" : "border-transparent text-muted/50 line-through"}`}>
-      {children}
-    </span>
-  );
-}
-
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Check({ name, label, defaultChecked }: { name: string; label: string; defaultChecked: boolean }) {
-  return (
-    <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} className="h-4 w-4 accent-[var(--accent)]" />
-      {label}
-    </label>
-  );
-}
-
-function Pager({ p, pages }: { p: Params; pages: number }) {
-  const href = (page: number) => `/?${toQuery({ ...p, page })}`;
-  const cls = "rounded-lg border border-line bg-surface px-4 py-2 text-sm hover:border-accent";
-  return (
-    <nav className="flex items-center justify-between">
-      {p.page > 1 ? <Link href={href(p.page - 1)} className={cls}>← Назад</Link> : <span />}
-      {p.page < pages ? <Link href={href(p.page + 1)} className={cls}>Дальше →</Link> : <span />}
-    </nav>
-  );
-}
-
-function NoDb() {
-  if (process.env.VERCEL) {
-    return (
-      <div className="mx-auto max-w-xl rounded-2xl border border-line bg-surface p-6">
-        <h1 className="text-xl font-semibold">Сайт настраивается</h1>
-        <p className="mt-2 text-muted">База заведений ещё не подключена. Загляните чуть позже.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="mx-auto max-w-xl rounded-2xl border border-line bg-surface p-6">
-      <h1 className="text-xl font-semibold">База лидов ещё не собрана</h1>
-      <p className="mt-2 text-muted">Выполните три шага из папки проекта, затем обновите страницу:</p>
-      <pre className="mt-3 overflow-x-auto rounded-lg bg-bg p-3 text-sm">{`python3 -m venv ingest/.venv
-ingest/.venv/bin/pip install -r ingest/requirements.txt
-ingest/.venv/bin/python ingest/overture.py
-ingest/.venv/bin/python ingest/build_db.py`}</pre>
+    <div>
+      <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+      {sub && <p className="mt-1 max-w-2xl text-muted">{sub}</p>}
     </div>
   );
 }
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="card p-5">
+      <p className="text-3xl font-bold tabular-nums tracking-tight">{value.toLocaleString("ru-RU")}</p>
+      <p className="mt-1 text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
+export type { Stats };

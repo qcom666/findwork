@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { listUnlockedIds } from "@/lib/credits";
+import { getCrm, STATUS_LABEL } from "@/lib/crm";
 import { csvCell, SITE_LABEL } from "@/lib/format";
 import { allow } from "@/lib/ratelimit";
 import { getLabels, getLeadsUnlocked } from "@/lib/search";
@@ -16,14 +17,18 @@ export async function GET() {
   const labels = await getLabels();
   const leads: Awaited<ReturnType<typeof getLeadsUnlocked>> = [];
   for (let i = 0; i < ids.length; i += 400) leads.push(...(await getLeadsUnlocked(ids.slice(i, i + 400))));
+  const crm = new Map<string, { status: string; note: string }>();
+  for (let i = 0; i < ids.length; i += 400) for (const [k, v] of await getCrm(user.id, ids.slice(i, i + 400))) crm.set(k, v);
 
-  const head = ["Название", "Ниша", "Город", "Адрес", "Телефон", "E-mail", "Сайт", "Соцсети", "Статус сайта", "Оценка", "Что предложить"];
+  const head = ["Название", "Ниша", "Город", "Адрес", "Телефон", "E-mail", "Сайт", "Соцсети", "Статус сайта", "Оценка", "Что предложить", "Этап", "Заметка"];
   const lines = [head.join(";")];
   for (const l of leads) {
+    const c = crm.get(l.id);
     lines.push(
       [
         l.name, labels.niches[l.niche] ?? l.niche, l.city, l.address, l.phone, l.email, l.website, l.socials.join(" "),
         SITE_LABEL[l.siteKind], l.score, l.services.map((s) => labels.services[s] ?? s).join(", "),
+        STATUS_LABEL[c?.status ?? "new"], c?.note ?? "",
       ].map(csvCell).join(";"),
     );
   }

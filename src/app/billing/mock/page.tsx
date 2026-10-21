@@ -3,7 +3,7 @@ import { MockPay } from "@/components/Small";
 import { getCurrentUser } from "@/lib/auth";
 import { getPayment, mockMode } from "@/lib/billing";
 
-export const metadata = { title: "Тестовая оплата — FindWork" };
+export const metadata = { title: "Тестовая оплата" };
 
 export default async function MockCheckout({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!mockMode()) notFound();
@@ -14,7 +14,7 @@ export default async function MockCheckout({ searchParams }: { searchParams: Pro
   if (!p || p.provider !== "mock") notFound();
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-warn bg-surface p-6">
+    <div className="mx-auto max-w-md card !border-warn p-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-warn">Тестовый режим, деньги не списываются</p>
       <h1 className="mt-2 text-xl font-semibold">Оплата {p.credits} кредитов</h1>
       <p className="mt-1 text-muted">К оплате: {p.amountRub.toLocaleString("ru-RU")} ₽</p>

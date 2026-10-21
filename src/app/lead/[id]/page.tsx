@@ -1,15 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LeadCrm } from "@/components/LeadCrm";
 import { LeadTools } from "@/components/LeadTools";
+import { ScoreRing } from "@/components/ScoreRing";
 import { UnlockPanel } from "@/components/UnlockPanel";
 import { getCurrentUser } from "@/lib/auth";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
+import { getCrm, STATUSES } from "@/lib/crm";
 import { dbReady } from "@/lib/db";
-import { SITE_LABEL, formatPhone, reasons, scoreTone, sourceLabel } from "@/lib/format";
+import { SITE_LABEL, formatPhone, reasons, sourceLabel } from "@/lib/format";
 import { getLabels, getLead } from "@/lib/search";
 
-const TONE = { good: "text-good", warn: "text-warn", muted: "text-muted" } as const;
 const DOT = { good: "bg-good", warn: "bg-warn", muted: "bg-muted/50" } as const;
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  if (!(await dbReady())) return { title: "Заведение" };
+  const lead = await getLead(decodeURIComponent((await params).id));
+  // Карточки заведений в поиск не отдаём: это справочные данные, а не страницы для выдачи.
+  return { title: lead?.name ?? "Заведение", robots: { index: false, follow: false } };
+}
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await dbReady())) notFound();
@@ -18,30 +28,33 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const lead = await getLead(decodeURIComponent(id), user?.id);
   if (!lead) notFound();
 
-  const labels = await getLabels();
+  const [labels, crm] = await Promise.all([
+    getLabels(),
+    user && lead.unlocked ? getCrm(user.id, [lead.id]) : Promise.resolve(null),
+  ]);
   const services = lead.services.map((s) => ({ id: s, label: labels.services[s] ?? s }));
   const mapQuery = encodeURIComponent(`${lead.name} ${lead.city ?? ""}`.trim());
-  const tone = scoreTone(lead.score);
-  const lock = <span className="text-muted" title="Откроется за кредит">🔒 </span>;
+  const lock = <span className="text-muted" title="Откроется за кредит" aria-label="скрыто">🔒 </span>;
+  const mine = crm?.get(lead.id);
 
   return (
     <div className="space-y-5">
-      <Link href="/" className="text-sm text-muted hover:text-ink">← К списку</Link>
+      <Link href="/leads" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">← К каталогу</Link>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="space-y-5">
-          <section className="rounded-2xl border border-line bg-surface p-5">
+          <section className="card p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-xl font-semibold tracking-tight">{lead.name}</h1>
+                <h1 className="text-xl font-bold tracking-tight">{lead.name}</h1>
                 <p className="mt-1 text-sm text-muted">
                   {labels.niches[lead.niche] ?? lead.niche}{lead.city ? ` · ${lead.city}` : ""}
                 </p>
                 {lead.address && <p className="text-sm text-muted">{lead.address}</p>}
               </div>
-              <div className="shrink-0 text-center" title="Оценка лида, 0–100">
-                <div className={`text-3xl font-semibold ${TONE[tone]}`}>{lead.score}</div>
-                <div className="text-xs text-muted">из 100</div>
+              <div className="shrink-0 text-center">
+                <ScoreRing score={lead.score} size="3.75rem" />
+                <p className="mt-1 text-xs text-muted">оценка</p>
               </div>
             </div>
 
@@ -109,12 +122,12 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               </Row>
             </dl>
 
-            <div className="mt-5 flex flex-wrap gap-2 text-sm">
-              <a href={`https://yandex.ru/maps/?text=${mapQuery}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-line px-3 py-1.5 hover:border-accent">
+            <div className="mt-5 flex flex-wrap gap-2">
+              <a href={`https://yandex.ru/maps/?text=${mapQuery}`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
                 Проверить на Яндекс Картах
               </a>
               {lead.lat != null && lead.lon != null && (
-                <a href={`https://www.openstreetmap.org/?mlat=${lead.lat}&mlon=${lead.lon}#map=18/${lead.lat}/${lead.lon}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-line px-3 py-1.5 hover:border-accent">
+                <a href={`https://www.openstreetmap.org/?mlat=${lead.lat}&mlon=${lead.lon}#map=18/${lead.lat}/${lead.lon}`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
                   На карте OSM
                 </a>
               )}
@@ -126,7 +139,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             )}
           </section>
 
-          <section className="rounded-2xl border border-line bg-surface p-5">
+          <section className="card p-5">
             <h2 className="text-sm font-semibold">Почему этот лид</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {reasons(lead).map((r, i) => (
@@ -139,10 +152,14 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             <h2 className="mt-5 text-sm font-semibold">Что можно предложить</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               {services.map((s) => (
-                <span key={s.id} className="rounded-full bg-accent-soft px-3 py-1 text-sm text-accent">{s.label}</span>
+                <Link key={s.id} href={`/leads?service=${s.id}`} className="rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-accent hover:brightness-95">{s.label}</Link>
               ))}
             </div>
           </section>
+
+          {lead.unlocked && (
+            <LeadCrm leadId={lead.id} statuses={[...STATUSES]} status={mine?.status ?? "new"} note={mine?.note ?? ""} />
+          )}
         </div>
 
         {lead.unlocked ? (

@@ -15,7 +15,7 @@ from pathlib import Path
 import duckdb
 from rapidfuzz import fuzz
 
-from common import (SERVICES, classify_url, clean_url, lead_score, lead_services, norm_name, norm_phone)
+from common import (SERVICES, classify_url, clean_url, lead_score, lead_services, norm_name, norm_phone, ru_city)
 from niches import NICHES, niche_for_osm, niche_for_overture
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,7 +35,7 @@ def clean_city(city, address):
     c = (city or "").strip()
     c = re.sub(r"^(г\.?|город)\s+", "", c, flags=re.I).strip()
     if c:
-        return c
+        return ru_city(c)
     parts = [p.strip() for p in (address or "").split(",")]
     if len(parts) >= 2:
         first = re.sub(r"^(г\.?|город)\s+", "", parts[0], flags=re.I).strip()

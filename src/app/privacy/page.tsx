@@ -1,6 +1,6 @@
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Политика конфиденциальности — FindWork" };
+export const metadata = { title: "Политика конфиденциальности" };
 
 export default function Privacy() {
   return (

@@ -68,16 +68,26 @@ function toLead(r: Row, unlocked: boolean): Lead {
 
 export type SiteFilter = "need" | "none" | "social" | "builder" | "real" | "any";
 
+export type Sort = "score" | "name";
+
 export type Params = {
   city: string;
   niche: string;
+  /** Услуга, которую фрилансер может предложить: id из services (site, qr_menu, booking...). */
+  service: string;
   site: SiteFilter;
+  minScore: number;
+  sort: Sort;
   phone: boolean;
   email: boolean;
+  social: boolean;
   chains: boolean;
   q: string;
   page: number;
 };
+
+export const SERVICE_IDS = ["site", "redesign", "qr_menu", "booking", "smm", "logo", "seo", "shop"] as const;
+export const MIN_SCORES = [0, 40, 50, 60, 70, 80] as const;
 
 export const PAGE_SIZE = 30;
 
@@ -90,12 +100,18 @@ function one(v: string | string[] | undefined): string {
 export function parseParams(sp: RawParams): Params {
   const site = one(sp.site) as SiteFilter;
   const page = Math.max(1, Math.min(5000, parseInt(one(sp.page), 10) || 1));
+  const service = one(sp.service);
+  const minScore = parseInt(one(sp.min), 10);
   return {
     city: one(sp.city).slice(0, 80),
     niche: one(sp.niche).slice(0, 40),
+    service: (SERVICE_IDS as readonly string[]).includes(service) ? service : "",
     site: ["need", "none", "social", "builder", "real", "any"].includes(site) ? site : "need",
+    minScore: (MIN_SCORES as readonly number[]).includes(minScore) ? minScore : 0,
+    sort: one(sp.sort) === "name" ? "name" : "score",
     phone: one(sp.phone) === "1",
     email: one(sp.email) === "1",
+    social: one(sp.social) === "1",
     chains: one(sp.chains) === "1",
     q: one(sp.q).slice(0, 80),
     page,
@@ -106,9 +122,13 @@ export function toQuery(p: Partial<Params>): string {
   const u = new URLSearchParams();
   if (p.city) u.set("city", p.city);
   if (p.niche) u.set("niche", p.niche);
+  if (p.service) u.set("service", p.service);
   if (p.site && p.site !== "need") u.set("site", p.site);
+  if (p.minScore) u.set("min", String(p.minScore));
+  if (p.sort && p.sort !== "score") u.set("sort", p.sort);
   if (p.phone) u.set("phone", "1");
   if (p.email) u.set("email", "1");
+  if (p.social) u.set("social", "1");
   if (p.chains) u.set("chains", "1");
   if (p.q) u.set("q", p.q);
   if (p.page && p.page > 1) u.set("page", String(p.page));
@@ -126,6 +146,8 @@ function where(p: Params): { sql: string; args: (string | number)[] } {
   const a: (string | number)[] = [];
   if (p.city) { w.push("p.city = ?"); a.push(p.city); }
   if (p.niche) { w.push("p.niche = ?"); a.push(p.niche); }
+  if (p.service) { w.push("(',' || p.services || ',') LIKE ?"); a.push(`%,${p.service},%`); }
+  if (p.minScore) { w.push("p.score >= ?"); a.push(p.minScore); }
   switch (p.site) {
     case "need": w.push("p.site_kind IN ('none','social','builder')"); break;
     case "any": break;
@@ -133,6 +155,7 @@ function where(p: Params): { sql: string; args: (string | number)[] } {
   }
   if (p.phone) w.push("p.has_phone = 1");
   if (p.email) w.push("p.has_email = 1");
+  if (p.social) w.push("p.has_social = 1");
   if (!p.chains) w.push("p.is_chain = 0");
   const fts = p.q ? ftsQuery(p.q) : null;
   if (fts) { w.push("p.rowid IN (SELECT rowid FROM places_fts WHERE places_fts MATCH ?)"); a.push(fts); }
@@ -147,7 +170,7 @@ export async function searchLeads(p: Params, userId?: number | null): Promise<{ 
   const [count, page] = await Promise.all([
     db.execute({ sql: `SELECT count(*) AS n FROM places p ${sql}`, args }),
     db.execute({
-      sql: `SELECT p.* FROM places p ${sql} ORDER BY p.score DESC, p.rowid LIMIT ? OFFSET ?`,
+      sql: `SELECT p.* FROM places p ${sql} ORDER BY ${p.sort === "name" ? "p.name" : "p.score DESC"}, p.rowid LIMIT ? OFFSET ?`,
       args: [...args, PAGE_SIZE, (p.page - 1) * PAGE_SIZE],
     }),
   ]);
@@ -208,4 +231,22 @@ export async function getMeta(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const r of rs.rows) out[String(r.key)] = String(r.value);
   return out;
+}
+
+export type Stats = { places: number; candidates: number; cities: number; niches: number };
+
+/** Цифры для главной страницы. */
+export async function getStats(): Promise<Stats> {
+  const db = leadsDb();
+  const [m, n, c] = await Promise.all([
+    db.execute("SELECT value FROM meta WHERE key = 'total'"),
+    db.execute("SELECT count(*) AS k, coalesce(sum(n_need), 0) AS need FROM niches WHERE n > 0"),
+    db.execute("SELECT count(*) AS k FROM cities"),
+  ]);
+  return {
+    places: Number(m.rows[0]?.value ?? 0),
+    candidates: Number(n.rows[0].need),
+    cities: Number(c.rows[0].k),
+    niches: Number(n.rows[0].k),
+  };
 }

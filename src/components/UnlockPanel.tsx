@@ -31,7 +31,7 @@ export function UnlockPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-accent bg-surface p-5">
+    <section className="card !border-accent p-5">
       <h2 className="text-sm font-semibold">Открыть контакты</h2>
       <p className="mt-1 text-sm text-muted">
         За {cost} кредит: телефон, e-mail, соцсети, ссылка на сайт, проверка сайта и питч. Повторно открывать не придётся.

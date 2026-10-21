@@ -41,7 +41,7 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
           Дарим {bonus} кредитов, чтобы вы попробовали на реальных лидах.
         </p>
       )}
-      <form onSubmit={submit} className="mt-5 space-y-3 rounded-2xl border border-line bg-surface p-5">
+      <form onSubmit={submit} className="mt-5 space-y-3 card p-5">
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-muted">E-mail</span>
           <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="field" />

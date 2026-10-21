@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPayment, settleByProviderId } from "@/lib/billing";
 import { plural } from "@/lib/format";
 
-export const metadata = { title: "Оплата — FindWork" };
+export const metadata = { title: "Оплата" };
 
 export default async function BillingReturn({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
@@ -21,7 +21,7 @@ export default async function BillingReturn({ searchParams }: { searchParams: Pr
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-line bg-surface p-6 text-center">
+    <div className="mx-auto max-w-md card p-6 text-center">
       {!p ? (
         <>
           <h1 className="text-xl font-semibold">Платёж не найден</h1>
@@ -33,7 +33,7 @@ export default async function BillingReturn({ searchParams }: { searchParams: Pr
           <p className="mt-2 text-muted">
             Зачислено {p.credits} {plural(p.credits, "кредит", "кредита", "кредитов")}. Баланс: {user.balance}.
           </p>
-          <Link href="/" className="mt-5 inline-block rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90">Искать лиды</Link>
+          <Link href="/leads" className="btn btn-primary mt-5">Искать лиды</Link>
         </>
       ) : p.status === "pending" ? (
         <>

@@ -4,7 +4,7 @@ import { mockMode, PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { plural } from "@/lib/format";
 
-export const metadata = { title: "Тарифы — FindWork" };
+export const metadata = { title: "Тарифы" };
 
 export default async function Pricing() {
   const user = await getCurrentUser();
