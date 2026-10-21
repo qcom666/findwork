@@ -256,6 +256,7 @@ def write_db(rows, meta):
         "FROM places WHERE city IS NOT NULL GROUP BY city HAVING count(*) >= 30"
     )
     con.executemany("INSERT INTO meta VALUES (?,?)", list(meta.items()))
+    con.executescript((Path(__file__).parent / "city_niche.sql").read_text(encoding="utf-8"))
     con.executescript(
         """
         CREATE INDEX ix_city_niche_score ON places(city, niche, score DESC);
