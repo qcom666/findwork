@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { AdminGrant } from "@/components/AdminGrant";
 import { AdminNav } from "@/components/AdminNav";
 import { AdminUserCredits } from "@/components/AdminUserCredits";
 import { getAdmin, searchUsers } from "@/lib/admin";
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: "Пользователи", robots: {
 const dt = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU");
 
 export default async function AdminUsers({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  if (!(await getAdmin())) notFound();
+  const admin = await getAdmin();
+  if (!admin) notFound();
   const raw = (await searchParams).q;
   const q = (typeof raw === "string" ? raw : "").slice(0, 80);
   const users = await searchUsers(q, 50);
@@ -21,6 +23,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
         <h1 className="text-2xl font-bold tracking-tight">Пользователи</h1>
         <p className="text-sm text-muted">Последние регистрации или поиск по части e-mail. Кредиты можно начислить или списать вручную: это попадёт в историю пользователя.</p>
       </div>
+
+      <AdminGrant selfEmail={admin.email} />
 
       <form className="flex max-w-md gap-2" role="search">
         <input name="q" defaultValue={q} placeholder="Часть e-mail" className="field" aria-label="Поиск по e-mail" />

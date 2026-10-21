@@ -118,3 +118,19 @@ describe("поиск пользователей", () => {
     assert.equal(row.paidRub, 490);
   });
 });
+
+describe("начисление по e-mail", () => {
+  it("находит пользователя без учёта регистра и пробелов", async () => {
+    const { adjustCreditsByEmail } = await import("../src/lib/admin");
+    const u = await user("owner@t.ru", 1);
+    assert.deepEqual(await adjustCreditsByEmail("  Owner@T.ru ", 50, "себе на тесты"), { ok: true, balance: 51, email: "owner@t.ru" });
+    assert.equal(await getBalance(u), 51);
+  });
+  it("неизвестный и пустой e-mail ничего не меняют", async () => {
+    const { adjustCreditsByEmail } = await import("../src/lib/admin");
+    const u = await user("a@t.ru", 1);
+    assert.equal((await adjustCreditsByEmail("nobody@t.ru", 5, "")).ok, false);
+    assert.equal((await adjustCreditsByEmail("   ", 5, "")).ok, false);
+    assert.equal(await getBalance(u), 1);
+  });
+});

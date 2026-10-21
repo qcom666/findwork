@@ -47,3 +47,14 @@ export async function adjustCredits(userId: number, delta: number, note: string)
     return { value: { ok: true, balance: balance + d } };
   });
 }
+
+/** Начисление или списание по e-mail: удобнее, чем искать человека в списке. Регистр не важен. */
+export async function adjustCreditsByEmail(email: string, delta: number, note: string): Promise<AdjustResult & { email?: string }> {
+  const mail = email.trim().toLowerCase();
+  if (!mail) return { ok: false, error: "Укажите e-mail" };
+  const db = await appDb();
+  const row = (await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [mail] })).rows[0];
+  if (!row) return { ok: false, error: "Пользователь с таким e-mail не найден. Он должен сначала зарегистрироваться." };
+  const r = await adjustCredits(Number(row.id), delta, note);
+  return r.ok ? { ...r, email: mail } : r;
+}
