@@ -185,7 +185,7 @@ describe("вход через бота", () => {
 
   it("другие сообщения и группы получают подсказку или игнорируются", async () => {
     await handleBotUpdate({ message: { chat: { id: 1, type: "private" }, from: anna, text: "привет" } });
-    assert.match(String(sent("sendMessage")[0].body.text), /бот входа на FindWork/);
+    assert.match(String(sent("sendMessage")[0].body.text), /бот входа на «Лидомап»/);
     calls = [];
     await handleBotUpdate({ message: { chat: { id: 1, type: "group" }, from: anna, text: "/start login_" + "a".repeat(30) } });
     await handleBotUpdate({ message: { chat: { id: 2, type: "private" }, from: { id: 5, is_bot: true }, text: "/start" } });

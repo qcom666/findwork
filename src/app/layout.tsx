@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { MobileMenu, NavLinks, type NavItem } from "@/components/NavLinks";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getCurrentUser } from "@/lib/auth";
+import { baseUrl } from "@/lib/brand";
 import { isAdminEmail } from "@/lib/metrics";
 import { dbReady } from "@/lib/db";
 import { plural } from "@/lib/format";
@@ -13,14 +14,13 @@ import { getMeta } from "@/lib/search";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"], variable: "--font-inter", display: "swap" });
 
-const SITE = "https://findwork-rouge.vercel.app";
 const DESCRIPTION = "Кафе, салоны, клиники и магазины России без сайта или со слабым сайтом. Оценка лида, проверка сайта и готовый питч для фрилансеров.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL || SITE),
-  title: { default: "FindWork — клиенты для фрилансеров среди заведений России", template: "%s — FindWork" },
+  metadataBase: new URL(baseUrl()),
+  title: { default: "Лидомап — клиенты для фрилансеров среди заведений России", template: "%s — Лидомап" },
   description: DESCRIPTION,
-  openGraph: { title: "FindWork", description: DESCRIPTION, siteName: "FindWork", locale: "ru_RU", type: "website" },
+  openGraph: { title: "Лидомап", description: DESCRIPTION, siteName: "Лидомап", locale: "ru_RU", type: "website" },
 };
 
 export const viewport: Viewport = {
@@ -59,7 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
-            <Link href="/" aria-label="FindWork, на главную">
+            <Link href="/" aria-label="Лидомап, на главную">
               <Logo />
             </Link>
             <nav className="hidden items-center gap-1 text-sm font-medium md:flex">

@@ -50,7 +50,7 @@ const toTg = (f: From): TgUser | null => {
 };
 
 const HELP =
-  "Это бот входа на FindWork. Чтобы войти, вернитесь на сайт и нажмите «Войти через бота», затем здесь нажмите Start. Других команд у меня нет.";
+  "Это бот входа на «Лидомап». Чтобы войти, вернитесь на сайт и нажмите «Войти через бота», затем здесь нажмите Start. Других команд у меня нет.";
 
 const say = (chat_id: number, text: string, extra: Record<string, unknown> = {}) => tgApi("sendMessage", { chat_id, text, ...extra });
 
@@ -83,7 +83,7 @@ export async function handleBotUpdate(update: unknown): Promise<void> {
     const age = Math.max(0, t - Number(row.created_at));
     await say(
       chat,
-      `${link ? "Привязать этот Telegram к вашему аккаунту FindWork?" : "Войти на FindWork с этим Telegram?"}\n\nЗапрос из браузера: ${uaLabel(String(row.ua))}\nIP: ${row.ip || "не определён"}\nЗапрошено ${age < 60 ? "только что" : `${Math.round(age / 60)} мин назад`}\n\nЕсли это не вы, нажмите «Нет».`,
+      `${link ? "Привязать этот Telegram к вашему аккаунту «Лидомап»?" : "Войти на «Лидомап» с этим Telegram?"}\n\nЗапрос из браузера: ${uaLabel(String(row.ua))}\nIP: ${row.ip || "не определён"}\nЗапрошено ${age < 60 ? "только что" : `${Math.round(age / 60)} мин назад`}\n\nЕсли это не вы, нажмите «Нет».`,
       { reply_markup: { inline_keyboard: [[{ text: "✅ Да, это я", callback_data: `ok:${m[2]}` }, { text: "❌ Нет", callback_data: `no:${m[2]}` }]] } },
     ).catch(() => {});
     return;

@@ -38,7 +38,7 @@ export default async function CityPage({ params }: Props) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "FindWork", item: "/" },
+      { "@type": "ListItem", position: 1, name: "Лидомап", item: "/" },
       { "@type": "ListItem", position: 2, name: "Каталог", item: "/leads" },
       { "@type": "ListItem", position: 3, name: city.name },
     ],
@@ -48,7 +48,7 @@ export default async function CityPage({ params }: Props) {
     <div className="space-y-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <nav className="text-sm text-muted" aria-label="Навигация">
-        <Link href="/" className="hover:text-ink">FindWork</Link> › <Link href="/leads" className="hover:text-ink">Каталог</Link> › {city.name}
+        <Link href="/" className="hover:text-ink">Лидомап</Link> › <Link href="/leads" className="hover:text-ink">Каталог</Link> › {city.name}
       </nav>
 
       <header className="max-w-3xl">

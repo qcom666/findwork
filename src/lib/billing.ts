@@ -144,7 +144,7 @@ export async function createCheckout(user: { id: number; email: string }, pkg: P
   const { packageDiscountPct } = await getEntitlements(user.id);
   return createPayment(
     user,
-    { packageId: pkg.id, kind: "credits", credits: pkg.credits, priceRub: packagePrice(pkg, packageDiscountPct), description: `FindWork: ${pkg.credits} кредитов` },
+    { packageId: pkg.id, kind: "credits", credits: pkg.credits, priceRub: packagePrice(pkg, packageDiscountPct), description: `Лидомап: ${pkg.credits} кредитов` },
     baseUrl,
   );
 }
@@ -156,7 +156,7 @@ export function createSubscriptionCheckout(user: { id: number; email: string }, 
     {
       packageId: `${plan.id}:${months}`, kind: "subscription", planId: plan.id, months,
       credits: planCredits(plan, months), priceRub: planPrice(plan, months),
-      description: `FindWork: подписка «${plan.title}», ${months} мес.`,
+      description: `Лидомап: подписка «${plan.title}», ${months} мес.`,
     },
     baseUrl,
   );

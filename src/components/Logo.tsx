@@ -8,8 +8,8 @@ export function LogoMark({ size = 28 }: { size?: number }) {
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9" fill="url(#fw-g)" />
-      <circle cx="14.5" cy="14.5" r="5.5" fill="none" stroke="#fff" strokeWidth="2.6" />
-      <path d="M18.8 18.8 24 24" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" />
+      <path d="M16 5.5c-4.4 0-8 3.4-8 7.8 0 5.6 8 13.2 8 13.2s8-7.6 8-13.2c0-4.4-3.6-7.8-8-7.8z" fill="#fff" />
+      <circle cx="16" cy="13.2" r="3" fill="#4f46e5" />
     </svg>
   );
 }
@@ -18,7 +18,7 @@ export function Logo() {
   return (
     <span className="flex items-center gap-2">
       <LogoMark />
-      <span className="text-lg font-bold tracking-tight">FindWork</span>
+      <span className="text-lg font-bold tracking-tight">Лидомап</span>
     </span>
   );
 }

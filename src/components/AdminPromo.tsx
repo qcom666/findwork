@@ -43,7 +43,7 @@ export function AdminPromoCreate() {
     const body = "﻿код;кредитов;заметка\r\n" + codes.map((c) => `${c};${f.credits};${f.note.replace(/;/g, ",")}`).join("\r\n");
     const url = URL.createObjectURL(new Blob([body], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
-    a.href = url; a.download = "findwork-promocodes.csv"; a.click();
+    a.href = url; a.download = "lidomap-promocodes.csv"; a.click();
     URL.revokeObjectURL(url);
   }
 

@@ -92,7 +92,7 @@ export default async function ReportPage({ params }: { params: Promise<{ token: 
       <footer className="space-y-1.5 text-xs text-muted">
         <p>
           Отчёт составлен автоматически по общедоступным данным сайта {date(r.createdAt)}. Это техническая проверка, а не оценка качества бизнеса: часть находок может не относиться к вашей ситуации.
-          Страницу подготовил частный специалист через сервис <Link href="/" className="underline">FindWork</Link>; ссылка действует до {date(r.expiresAt)}.
+          Страницу подготовил частный специалист через сервис <Link href="/" className="underline">Лидомап</Link>; ссылка действует до {date(r.expiresAt)}.
         </p>
         <p>
           Если вы владелец заведения и хотите, чтобы эта страница была удалена, напишите на{" "}

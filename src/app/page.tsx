@@ -84,7 +84,7 @@ export default async function Home() {
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">
               {stats ? `${stats.places.toLocaleString("ru-RU")} заведений России на открытых данных. ` : ""}
-              FindWork находит тех, кому нужен сайт, QR-меню, онлайн-запись или соцсети, оценивает лид и пишет первое сообщение.
+              Лидомап находит тех, кому нужен сайт, QR-меню, онлайн-запись или соцсети, оценивает лид и пишет первое сообщение.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/leads" className="btn btn-primary">Смотреть лиды</Link>
@@ -150,7 +150,7 @@ export default async function Home() {
       </section>
 
       <section className="space-y-8">
-        <SectionTitle title="Почему FindWork" sub="Мы не парсим карты на лету: каталог собран заранее из открытых данных. Это быстрее, спокойнее и дешевле для вас." />
+        <SectionTitle title="Почему Лидомап" sub="Мы не парсим карты на лету: каталог собран заранее из открытых данных. Это быстрее, спокойнее и дешевле для вас." />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {WHY.map((w) => (
             <div key={w.title} className="card p-5">
@@ -162,14 +162,14 @@ export default async function Home() {
         <div className="card overflow-hidden text-sm">
           <div className="hidden grid-cols-[9rem_1fr_1fr] gap-4 border-b border-line bg-surface-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted sm:grid">
             <span />
-            <span className="text-accent">FindWork</span>
+            <span className="text-accent">Лидомап</span>
             <span>Сервисы-парсеры карт, как правило</span>
           </div>
           <dl className="divide-y divide-line">
             {COMPARE.map((c) => (
               <div key={c.row} className="grid gap-1 px-5 py-3.5 sm:grid-cols-[9rem_1fr_1fr] sm:gap-4">
                 <dt className="font-semibold">{c.row}</dt>
-                <dd><span className="text-xs font-semibold text-accent sm:hidden">FindWork: </span>{c.us}</dd>
+                <dd><span className="text-xs font-semibold text-accent sm:hidden">Лидомап: </span>{c.us}</dd>
                 <dd className="text-muted"><span className="text-xs font-semibold sm:hidden">Парсеры: </span>{c.them}</dd>
               </div>
             ))}

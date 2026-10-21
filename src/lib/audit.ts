@@ -57,7 +57,7 @@ function requestOnce(url: URL, ip: { address: string; family: number }, insecure
         timeout: 8000,
         rejectUnauthorized: !insecure,
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; FindWorkAudit/0.1)",
+          "User-Agent": "Mozilla/5.0 (compatible; LidomapAudit/0.1)",
           Accept: "text/html,application/xhtml+xml",
           "Accept-Encoding": "identity",
         },

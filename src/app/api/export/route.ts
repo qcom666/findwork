@@ -39,7 +39,7 @@ export async function GET() {
   return new Response("﻿" + lines.join("\r\n"), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="findwork-leads.csv"',
+      "Content-Disposition": 'attachment; filename="lidomap-leads.csv"',
       "Cache-Control": "private, no-store",
     },
   });

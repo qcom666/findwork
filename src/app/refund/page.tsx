@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LEGAL_DATE, LEGAL_VERSION } from "@/lib/legal";
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Оплата и возврат", description: "Как проходит оплата кредитов FindWork и когда можно вернуть деньги." };
+export const metadata = { title: "Оплата и возврат", description: "Как проходит оплата кредитов «Лидомап» и когда можно вернуть деньги." };
 
 export const dynamic = "force-dynamic";
 

@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { baseUrl } from "@/lib/brand";
 import { ARTICLES } from "@/content/articles";
 import { dbReady } from "@/lib/db";
 import { getAllCities, getSitemapPairs, MIN_PAGE } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = process.env.APP_URL || "https://findwork-rouge.vercel.app";
+  const base = baseUrl();
   const pages: MetadataRoute.Sitemap = ["/", "/leads", "/pricing", "/blog", "/about", "/terms", "/refund", "/contacts", "/privacy", "/consent"].map((p) => ({
     url: base + p,
     changeFrequency: p === "/leads" ? "daily" : "monthly",

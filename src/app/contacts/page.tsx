@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { baseUrl } from "@/lib/brand";
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Контакты и реквизиты", description: "Как связаться с FindWork и реквизиты продавца." };
+export const metadata = { title: "Контакты и реквизиты", description: "Как связаться с «Лидомапом» и реквизиты продавца." };
 
 export const dynamic = "force-dynamic";
 
 export default function Contacts() {
-  const site = process.env.APP_URL || "https://findwork-rouge.vercel.app";
+  const site = baseUrl();
   return (
     <article className="max-w-2xl space-y-8 leading-relaxed">
       <h1 className="text-2xl font-bold tracking-tight">Контакты и реквизиты</h1>
