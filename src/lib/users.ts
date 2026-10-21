@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { SIGNUP_BONUS } from "./credits";
 import { appDb, writeTx } from "./db";
+import { tgEmail, type TgUser } from "./telegram";
 
 const now = () => Math.floor(Date.now() / 1000);
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -17,8 +18,9 @@ export type CreateResult = { ok: true; userId: number } | { ok: false; error: st
  * Создаёт пользователя с бонусом за регистрацию и своим реферальным кодом.
  * refCode: код пригласившего. Неизвестный код и свой собственный молча игнорируются.
  * consentVersion: редакция документов, которую принял пользователь (сохраняем вместе со временем согласия).
+ * tg: вход через Telegram; тогда пароля нет (passHash пустой, войти по паролю нельзя), а почта служебная.
  */
-export async function createUser(email: string, passHash: string, refCode?: string | null, consentVersion?: string): Promise<CreateResult> {
+export async function createUser(email: string, passHash: string, refCode?: string | null, consentVersion?: string, tg?: TgUser): Promise<CreateResult> {
   const mail = email.trim().toLowerCase();
   const t = now();
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -34,8 +36,9 @@ export async function createUser(email: string, passHash: string, refCode?: stri
           if (r) referrer = Number(r.id);
         }
         const ins = await tx.execute({
-          sql: "INSERT INTO users(email, pass_hash, balance, created_at, ref_code, referred_by, consent_at, consent_ver) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          args: [mail, passHash, SIGNUP_BONUS, t, mine, referrer, consentVersion ? t : null, consentVersion ?? null],
+          sql: `INSERT INTO users(email, pass_hash, balance, created_at, ref_code, referred_by, consent_at, consent_ver, tg_id, tg_username, display_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [mail, passHash, SIGNUP_BONUS, t, mine, referrer, consentVersion ? t : null, consentVersion ?? null, tg?.id ?? null, tg?.username ?? null, tg?.name ?? null],
         });
         const userId = Number(ins.lastInsertRowid);
         if (SIGNUP_BONUS > 0) {
@@ -72,4 +75,41 @@ export async function getReferralInfo(userId: number): Promise<ReferralInfo> {
     db.execute({ sql: "SELECT count(*) AS n, coalesce(sum(credits), 0) AS c FROM referral_rewards WHERE referrer_id = ?", args: [userId] }),
   ]);
   return { code, invited: Number(inv.rows[0].n), paid: Number(paid.rows[0].n), earned: Number(paid.rows[0].c) };
+}
+
+export type TelegramLogin =
+  | { ok: true; userId: number; created: boolean }
+  | { ok: false; needConsent: true }
+  | { ok: false; needConsent?: false; error: string };
+
+/**
+ * Находит аккаунт по Telegram или создаёт новый. Новый создаётся только с согласием на оферту и обработку данных
+ * (consentVersion): без него возвращается needConsent, и страница спрашивает согласие отдельным действием.
+ * canCreate: проверка лимита на создание аккаунтов, вызывается только когда аккаунт действительно будет создан.
+ */
+export async function loginOrCreateTelegramUser(
+  tg: TgUser,
+  opts: { refCode?: string | null; consentVersion?: string | null; canCreate?: () => Promise<boolean> } = {},
+): Promise<TelegramLogin> {
+  const db = await appDb();
+  const find = async () => (await db.execute({ sql: "SELECT id FROM users WHERE tg_id = ?", args: [tg.id] })).rows[0];
+
+  const found = await find();
+  if (found) return { ok: true, userId: await touchTelegramUser(Number(found.id), tg), created: false };
+
+  if (!opts.consentVersion) return { ok: false, needConsent: true };
+  if (opts.canCreate && !(await opts.canCreate())) return { ok: false, error: "Слишком много регистраций с вашего адреса. Попробуйте позже." };
+
+  const r = await createUser(tgEmail(tg.id), "", opts.refCode, opts.consentVersion, tg);
+  if (r.ok) return { ok: true, userId: r.userId, created: true };
+  // Два первых входа одновременно: второй упёрся в уже созданный аккаунт, это не ошибка.
+  const again = await find();
+  return again ? { ok: true, userId: await touchTelegramUser(Number(again.id), tg), created: false } : { ok: false, error: r.error };
+}
+
+/** Обновляет имя и username из Telegram: человек мог их сменить. */
+async function touchTelegramUser(userId: number, tg: TgUser): Promise<number> {
+  const db = await appDb();
+  await db.execute({ sql: "UPDATE users SET tg_username = ?, display_name = ? WHERE id = ?", args: [tg.username, tg.name, userId] });
+  return userId;
 }

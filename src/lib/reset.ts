@@ -1,5 +1,6 @@
 import { appDb, writeTx } from "./db";
 import { emailConfigured, sendEmail } from "./email";
+import { isTgEmail } from "./telegram";
 import { hashPassword, newToken, sha256 } from "./password";
 
 const TTL = 3600; // ссылка живёт час
@@ -14,6 +15,7 @@ export type RequestResult = { configured: boolean };
 export async function requestPasswordReset(email: string, baseUrl: string): Promise<RequestResult> {
   if (!emailConfigured()) return { configured: false };
   const mail = email.trim().toLowerCase();
+  if (isTgEmail(mail)) return { configured: true }; // служебная почта входа через Telegram, писем туда не шлём
   const db = await appDb();
   const u = (await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [mail] })).rows[0];
   if (!u) return { configured: true };

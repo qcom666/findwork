@@ -76,6 +76,7 @@ export async function getMetrics(): Promise<Metrics> {
 }
 
 function maskEmail(e: string): string {
+  if (/\.invalid$/i.test(e)) return "Telegram";
   const [name, host] = e.split("@");
   return `${name.slice(0, 2)}•••@${host ?? ""}`;
 }

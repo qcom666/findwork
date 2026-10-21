@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex items-center gap-2">
               <ThemeToggle />
               {user ? (
-                <Link href="/account" className="btn btn-ghost btn-sm" title={user.email}>
+                <Link href="/account" className="btn btn-ghost btn-sm" title={user.label}>
                   <span className="text-accent">{user.balance}</span> {plural(user.balance, "кредит", "кредита", "кредитов")}
                 </Link>
               ) : (

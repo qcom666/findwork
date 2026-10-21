@@ -33,7 +33,7 @@ export default async function Account() {
     <div className="space-y-6">
       <section className="flex flex-wrap items-center justify-between gap-4 card p-5">
         <div>
-          <p className="text-sm text-muted">{user.email}</p>
+          <p className="text-sm text-muted">{user.label}{user.label !== user.email && <span> · вход через Telegram</span>}</p>
           <p className="mt-1 text-3xl font-semibold">
             {user.balance} <span className="text-lg font-normal text-muted">{plural(user.balance, "кредит", "кредита", "кредитов")}</span>
           </p>

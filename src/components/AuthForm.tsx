@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ConsentChecks } from "./ConsentChecks";
+import { TelegramAuth } from "./TelegramAuth";
 
-export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next: string; bonus: number }) {
+export function AuthForm({ mode, next, bonus, telegramBot = null, telegramHint = false }: { mode: "login" | "signup"; next: string; bonus: number; telegramBot?: string | null; telegramHint?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,24 +57,18 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
             value={password} onChange={(e) => setPassword(e.target.value)} className="field"
           />
         </label>
-        {signup && (
-          <div className="space-y-2 text-xs text-muted">
-            <label className="flex items-start gap-2">
-              <input type="checkbox" required checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5" />
-              <span>Принимаю условия <Link href="/terms" target="_blank" className="underline">оферты</Link> и ознакомился с <Link href="/privacy" target="_blank" className="underline">политикой конфиденциальности</Link></span>
-            </label>
-            <label className="flex items-start gap-2">
-              <input type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
-              <span>Даю <Link href="/consent" target="_blank" className="underline">согласие на обработку персональных данных</Link></span>
-            </label>
-          </div>
-        )}
+        {signup && <ConsentChecks accept={accept} consent={consent} onAccept={setAccept} onConsent={setConsent} />}
         {err && <p className="text-sm text-bad">{err}</p>}
         {!signup && <p className="text-right text-sm"><Link href="/forgot" className="text-muted hover:text-ink hover:underline">Забыли пароль?</Link></p>}
         <button disabled={busy} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-60">
           {busy ? "Подождите…" : signup ? "Создать аккаунт" : "Войти"}
         </button>
       </form>
+      {(telegramBot || telegramHint) && (
+        <div className="mt-3 card p-5">
+          <TelegramAuth bot={telegramBot} next={next} hint={telegramHint} title={signup ? "Или зарегистрируйтесь через Telegram: без почты и пароля" : "Или войдите через Telegram"} />
+        </div>
+      )}
       <p className="mt-4 text-center text-sm text-muted">
         {signup ? "Уже есть аккаунт?" : "Нет аккаунта?"}{" "}
         <Link href={other} className="text-accent hover:underline">{signup ? "Войти" : "Зарегистрироваться"}</Link>

@@ -27,7 +27,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
       <AdminGrant selfEmail={admin.email} />
 
       <form className="flex max-w-md gap-2" role="search">
-        <input name="q" defaultValue={q} placeholder="Часть e-mail" className="field" aria-label="Поиск по e-mail" />
+        <input name="q" defaultValue={q} placeholder="E-mail, имя или @username" className="field" aria-label="Поиск пользователя" />
         <button className="btn btn-ghost">Найти</button>
       </form>
 
@@ -36,7 +36,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
         {users.map((u) => (
           <li key={u.id} className="space-y-2 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="min-w-0 break-all"><b>{u.email}</b> <span className="text-muted">№{u.id} · с {dt(u.createdAt)}</span></span>
+              <span className="min-w-0 break-all"><b>{u.label}</b> <span className="text-muted">№{u.id} · с {dt(u.createdAt)}</span></span>
               <span className="text-muted">
                 баланс <b className="text-ink">{u.balance}</b> · открыто {u.unlocks}{u.paidRub > 0 ? ` · оплатил ${u.paidRub.toLocaleString("ru-RU")} ₽` : ""}
               </span>

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** Быстрое начисление кредитов по e-mail. Кнопка «Себе» подставляет почту владельца. */
+/** Быстрое начисление кредитов по e-mail или @username из Telegram. Кнопка «Себе» подставляет почту владельца. */
 export function AdminGrant({ selfEmail }: { selfEmail: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -41,9 +41,9 @@ export function AdminGrant({ selfEmail }: { selfEmail: string }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-[1.4fr_0.6fr_1fr_auto]">
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-muted">E-mail получателя</span>
+          <span className="mb-1 block text-xs font-medium text-muted">E-mail или @username в Telegram</span>
           <span className="flex gap-2">
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="field" placeholder="name@example.com" />
+            <input required value={email} onChange={(e) => setEmail(e.target.value)} className="field" placeholder="name@example.com или @username" />
             <button type="button" className="btn btn-ghost btn-sm shrink-0" onClick={() => setEmail(selfEmail)}>Себе</button>
           </span>
         </label>

@@ -3,18 +3,26 @@ import { cache } from "react";
 import { appDb } from "./db";
 import { hashPassword, newToken, sha256, verifyPassword } from "./password";
 import { syncSubscriptions } from "./subscriptions";
-import { createUser } from "./users";
+import { isTgEmail, type TgUser } from "./telegram";
+import { createUser, loginOrCreateTelegramUser, type TelegramLogin } from "./users";
 
 const COOKIE = "fw_session";
 const SESSION_DAYS = 30;
 const now = () => Math.floor(Date.now() / 1000);
 
-export type User = { id: number; email: string; balance: number };
+/** label: как показывать человека: почта или, если входил через Telegram, @username и имя. */
+export type User = { id: number; email: string; balance: number; label: string };
+
+export function userLabel(email: string, tgUsername: string | null, displayName: string | null): string {
+  if (!isTgEmail(email)) return email;
+  return tgUsername ? `@${tgUsername}` : displayName || "Telegram";
+}
 
 export const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 export function validateCredentials(email: string, password: string): string | null {
-  if (!EMAIL_RE.test(email) || email.length > 254) return "Проверьте e-mail";
+  // Адреса .invalid зарезервированы под служебные почты входа через Telegram: занять такой вручную нельзя.
+  if (!EMAIL_RE.test(email) || email.length > 254 || /\.invalid$/i.test(email)) return "Проверьте e-mail";
   if (password.length < 8) return "Пароль должен быть не короче 8 символов";
   if (password.length > 200) return "Пароль слишком длинный";
   return null;
@@ -44,6 +52,17 @@ export async function signUp(email: string, password: string, consentVersion?: s
   if (!r.ok) return r;
   await startSession(r.userId);
   return { ok: true };
+}
+
+/** Вход или регистрация через Telegram. Данные виджета к этому моменту уже проверены (verifyTelegramLogin). */
+export async function signInWithTelegram(
+  tg: TgUser,
+  opts: { consentVersion?: string | null; canCreate?: () => Promise<boolean> } = {},
+): Promise<TelegramLogin> {
+  const ref = (await cookies()).get("fw_ref")?.value ?? null;
+  const r = await loginOrCreateTelegramUser(tg, { refCode: ref, ...opts });
+  if (r.ok) await startSession(r.userId);
+  return r;
 }
 
 // Хэш для несуществующего пользователя: чтобы время ответа не выдавало, есть ли такой e-mail.
@@ -76,7 +95,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   try {
     const db = await appDb();
     const r = await db.execute({
-      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at FROM sessions s JOIN users u ON u.id = s.user_id
+      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_username, u.display_name FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ? AND s.expires_at > ?`,
       args: [sha256(token), now()],
     });
@@ -90,7 +109,11 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
         return 0;
       });
     }
-    return { id: Number(row.id), email: String(row.email), balance };
+    const email = String(row.email);
+    return {
+      id: Number(row.id), email, balance,
+      label: userLabel(email, row.tg_username == null ? null : String(row.tg_username), row.display_name == null ? null : String(row.display_name)),
+    };
   } catch {
     return null;
   }

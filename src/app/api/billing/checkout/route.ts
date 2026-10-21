@@ -2,6 +2,7 @@ import { appBaseUrl, createCheckout, createSubscriptionCheckout, getPackage, pay
 import { json, needUser, readJson } from "@/lib/http";
 import { getPeriod, getPlan } from "@/lib/plans";
 import { allow } from "@/lib/ratelimit";
+import { isTgEmail } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,10 @@ export async function POST(req: Request) {
   const auth = await needUser();
   if ("error" in auth) return auth.error;
   if (!paymentsEnabled()) return json({ error: "Оплата пока не настроена" }, 503);
+  // Чек ЮKassa уходит на e-mail покупателя; у аккаунта из Telegram настоящей почты нет.
+  if (process.env.YOOKASSA_RECEIPT === "1" && isTgEmail(auth.user.email)) {
+    return json({ error: "Для оплаты с чеком нужен e-mail. Напишите в поддержку или зарегистрируйтесь по e-mail." }, 409);
+  }
   if (!(await allow(`checkout:${auth.user.id}`, 20, 3600))) return json({ error: "Слишком много попыток оплаты, попробуйте позже" }, 429);
 
   try {
