@@ -7,7 +7,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import type { AddressInfo } from "node:net";
 
 import { createCheckout, fulfillPayment, getPackage, getPayment, settleByProviderId, yookassaIpAllowed } from "../src/lib/billing";
-import { getBalance, getLedger, isUnlocked, unlockLead } from "../src/lib/credits";
+import { getBalance, getLedger, isUnlocked, unlockLead, unlockMany } from "../src/lib/credits";
 import { __resetAppDbForTests } from "../src/lib/db";
 import { maskEmail, maskPhone, socialNames } from "../src/lib/mask";
 import { safeNext } from "../src/lib/nav";
@@ -70,6 +70,41 @@ describe("разблокировка лидов", () => {
     const a = await newUser(1), b = await newUser(1);
     await unlockLead(a, "lead-1");
     assert.equal(await isUnlocked(b, "lead-1"), false);
+  });
+});
+
+describe("открытие пачкой", () => {
+  it("списывает только за новые, уже открытые и дубли бесплатны", async () => {
+    const u = await newUser(10);
+    await unlockLead(u, "a");
+    const r = await unlockMany(u, ["a", "b", "c", "b"]);
+    assert.deepEqual(r, { ok: true, opened: 2, charged: 2, balance: 7 });
+    assert.equal(await getBalance(u), 7);
+    for (const id of ["a", "b", "c"]) assert.equal(await isUnlocked(u, id), true);
+    assert.equal((await getLedger(u)).filter((l) => l.reason === "unlock").length, 3);
+  });
+
+  it("не хватает кредитов: не открывается ничего и баланс не меняется", async () => {
+    const u = await newUser(2);
+    const r = await unlockMany(u, ["a", "b", "c"]);
+    assert.deepEqual(r, { ok: false, reason: "insufficient", need: 3, balance: 2 });
+    assert.equal(await getBalance(u), 2);
+    assert.equal(await isUnlocked(u, "a"), false);
+    assert.equal((await getLedger(u)).length, 0);
+  });
+
+  it("повторный вызов с теми же лидами ничего не списывает", async () => {
+    const u = await newUser(5);
+    await unlockMany(u, ["a", "b"]);
+    const again = await unlockMany(u, ["a", "b"]);
+    assert.deepEqual(again, { ok: true, opened: 0, charged: 0, balance: 3 });
+  });
+
+  it("параллельные пачки не уводят баланс в минус", async () => {
+    const u = await newUser(3);
+    const res = await Promise.all([unlockMany(u, ["a", "b"]), unlockMany(u, ["c", "d"]), unlockMany(u, ["e", "f"])]);
+    assert.equal(res.filter((r) => r.ok).length, 1);
+    assert.equal(await getBalance(u), 1);
   });
 });
 

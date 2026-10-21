@@ -1,10 +1,24 @@
 import type { MetadataRoute } from "next";
+import { dbReady } from "@/lib/db";
+import { getAllCities, getSitemapPairs, MIN_PAGE } from "@/lib/seo";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.APP_URL || "https://findwork-rouge.vercel.app";
-  return ["/", "/leads", "/pricing", "/about", "/terms", "/privacy"].map((p) => ({
+  const pages: MetadataRoute.Sitemap = ["/", "/leads", "/pricing", "/about", "/terms", "/privacy"].map((p) => ({
     url: base + p,
     changeFrequency: p === "/leads" ? "daily" : "monthly",
     priority: p === "/" ? 1 : 0.6,
   }));
+
+  // Страницы городов и ниш: только там, где есть что показать.
+  if (await dbReady()) {
+    try {
+      const cities = (await getAllCities()).filter((c) => c.nNeed >= MIN_PAGE).slice(0, 80);
+      for (const c of cities) pages.push({ url: `${base}/city/${c.slug}`, changeFrequency: "weekly", priority: 0.7 });
+      for (const p of await getSitemapPairs(60)) pages.push({ url: `${base}/city/${p.city.slug}/${p.niche}`, changeFrequency: "weekly", priority: 0.5 });
+    } catch {
+      // без базы отдаём хотя бы основные страницы
+    }
+  }
+  return pages;
 }

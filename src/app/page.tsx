@@ -6,6 +6,7 @@ import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
 import { SERVICE_SHORT, plural } from "@/lib/format";
 import { getNiches, getStats, type Option, type Stats } from "@/lib/search";
+import { getAllCities, type CityInfo } from "@/lib/seo";
 
 const STEPS = [
   { n: "1", title: "Выберите, что вы делаете", text: "Сайты, QR-меню, онлайн-запись, соцсети, логотипы. Каталог сразу сужается до подходящих заведений." },
@@ -31,9 +32,10 @@ const FAQ = [
 
 export default async function Home() {
   const ready = await dbReady();
-  const [stats, niches, user] = await Promise.all([
+  const [stats, niches, cities, user] = await Promise.all([
     ready ? getStats().catch(() => null) : null,
     ready ? getNiches().catch(() => [] as Option[]) : ([] as Option[]),
+    ready ? getAllCities().catch(() => [] as CityInfo[]) : ([] as CityInfo[]),
     getCurrentUser(),
   ]);
   const topNiches = niches.slice(0, 8);
@@ -131,6 +133,19 @@ export default async function Home() {
           <div className="flex flex-wrap gap-2">
             {Object.entries(SERVICE_SHORT).map(([id, label]) => (
               <Link key={id} href={`/leads?service=${id}`} className="chip">{label}</Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cities.length > 0 && (
+        <section className="space-y-6">
+          <SectionTitle title="Города" sub="Лиды без сайта по крупным городам России." />
+          <div className="flex flex-wrap gap-2">
+            {cities.slice(0, 16).map((c) => (
+              <Link key={c.slug} href={`/city/${c.slug}`} className="chip">
+                {c.name} <span className="count">{c.nNeed.toLocaleString("ru-RU")}</span>
+              </Link>
             ))}
           </div>
         </section>

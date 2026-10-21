@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { FilterForm } from "@/components/FilterForm";
-import { ScoreRing } from "@/components/ScoreRing";
+import { LeadRow } from "@/components/LeadRow";
+import { UnlockPage } from "@/components/UnlockPage";
 import { getCurrentUser } from "@/lib/auth";
 import { SIGNUP_BONUS } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
-import { SERVICE_SHORT, SITE_LABEL, plural } from "@/lib/format";
+import { SERVICE_SHORT, plural } from "@/lib/format";
 import {
-  MIN_SCORES, PAGE_SIZE, SERVICE_IDS, getCities, getLabels, getNiches, parseParams, searchLeads, toQuery, type Lead, type Params,
+  MIN_SCORES, PAGE_SIZE, SERVICE_IDS, getCities, getLabels, getNiches, parseParams, searchLeads, toQuery, type Params,
 } from "@/lib/search";
 
 export const metadata: Metadata = {
@@ -16,13 +17,6 @@ export const metadata: Metadata = {
 };
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
-
-const SITE_TONE = {
-  none: "bg-good-soft text-good",
-  social: "bg-good-soft text-good",
-  builder: "bg-warn-soft text-warn",
-  real: "bg-surface-2 text-muted",
-} as const;
 
 export default async function Leads({ searchParams }: { searchParams: SP }) {
   if (!(await dbReady())) return <NoDb />;
@@ -134,6 +128,10 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
         </span>
       </div>
 
+      {user && leads.some((l) => !l.unlocked) && (
+        <UnlockPage ids={leads.filter((l) => !l.unlocked).map((l) => l.id)} balance={user.balance} />
+      )}
+
       {leads.length === 0 ? (
         <div className="card border-dashed p-10 text-center text-muted">
           Ничего не нашлось.{" "}
@@ -142,49 +140,13 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
       ) : (
         <ul className="card divide-y divide-line overflow-hidden">
           {leads.map((l) => (
-            <Row key={l.id} l={l} niche={labels.niches[l.niche] ?? l.niche} />
+            <LeadRow key={l.id} l={l} niche={labels.niches[l.niche] ?? l.niche} />
           ))}
         </ul>
       )}
 
       {pages > 1 && <Pager p={p} pages={pages} />}
     </div>
-  );
-}
-
-function Row({ l, niche }: { l: Lead; niche: string }) {
-  return (
-    <li>
-      <Link
-        href={`/lead/${encodeURIComponent(l.id)}`}
-        className="grid grid-cols-[2.75rem_1fr] items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:grid-cols-[2.75rem_1fr_11.5rem_12rem]"
-      >
-        <ScoreRing score={l.score} />
-        <span className="min-w-0">
-          <span className="block truncate font-semibold">{l.name}</span>
-          <span className="block truncate text-sm text-muted">
-            {niche}{l.city ? ` · ${l.city}` : ""}{l.address ? ` · ${l.address}` : ""}
-          </span>
-        </span>
-        <span className="col-start-2 sm:col-start-auto">
-          <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${SITE_TONE[l.siteKind]}`}>{SITE_LABEL[l.siteKind]}</span>
-        </span>
-        <span className="col-start-2 flex flex-wrap items-center gap-1.5 text-xs sm:col-start-auto sm:justify-end">
-          <Mark on={l.has.phone}>тел</Mark>
-          <Mark on={l.has.email}>e-mail</Mark>
-          <Mark on={l.has.social}>соцсети</Mark>
-          {l.unlocked && <span className="whitespace-nowrap rounded-md bg-accent-soft px-1.5 py-0.5 font-medium text-accent">открыт</span>}
-        </span>
-      </Link>
-    </li>
-  );
-}
-
-function Mark({ on, children }: { on: boolean; children: React.ReactNode }) {
-  return (
-    <span className={`whitespace-nowrap rounded-md border px-1.5 py-0.5 ${on ? "border-line" : "border-transparent text-muted/50 line-through"}`}>
-      {children}
-    </span>
   );
 }
 

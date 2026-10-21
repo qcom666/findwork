@@ -1,3 +1,4 @@
+import { cached } from "./cache";
 import { unlockedAmong } from "./credits";
 import { leadsDb } from "./db";
 import { maskEmail, maskPhone, socialNames } from "./mask";
@@ -199,6 +200,13 @@ export async function getLeadsUnlocked(ids: string[]): Promise<Lead[]> {
   return ids.map((id) => byId.get(id)).filter((l): l is Lead => !!l);
 }
 
+/** Какие из переданных id есть в каталоге. */
+export async function existingIds(ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+  const rs = await leadsDb().execute({ sql: `SELECT id FROM places WHERE id IN (${ids.map(() => "?").join(",")})`, args: ids });
+  return rs.rows.map((r) => String(r.id));
+}
+
 export async function leadExists(id: string): Promise<boolean> {
   const rs = await leadsDb().execute({ sql: "SELECT 1 FROM places WHERE id = ?", args: [id] });
   return rs.rows.length > 0;
@@ -206,17 +214,17 @@ export async function leadExists(id: string): Promise<boolean> {
 
 export type Option = { id: string; label: string; n: number; nNeed: number };
 
-export async function getNiches(): Promise<Option[]> {
+async function loadNiches(): Promise<Option[]> {
   const rs = await leadsDb().execute("SELECT id, label, n, n_need FROM niches WHERE n > 0 ORDER BY n_need DESC");
   return rs.rows.map((r) => ({ id: String(r.id), label: String(r.label), n: Number(r.n), nNeed: Number(r.n_need) }));
 }
 
-export async function getCities(limit = 200): Promise<Option[]> {
+async function loadCities(limit: number): Promise<Option[]> {
   const rs = await leadsDb().execute({ sql: "SELECT name, n, n_need FROM cities ORDER BY n DESC LIMIT ?", args: [limit] });
   return rs.rows.map((r) => ({ id: String(r.name), label: String(r.name), n: Number(r.n), nNeed: Number(r.n_need) }));
 }
 
-export async function getLabels(): Promise<{ niches: Record<string, string>; services: Record<string, string> }> {
+async function loadLabels(): Promise<{ niches: Record<string, string>; services: Record<string, string> }> {
   const db = leadsDb();
   const [n, s] = await Promise.all([db.execute("SELECT id, label FROM niches"), db.execute("SELECT id, label FROM services")]);
   const niches: Record<string, string> = {};
@@ -226,7 +234,7 @@ export async function getLabels(): Promise<{ niches: Record<string, string>; ser
   return { niches, services };
 }
 
-export async function getMeta(): Promise<Record<string, string>> {
+async function loadMeta(): Promise<Record<string, string>> {
   const rs = await leadsDb().execute("SELECT key, value FROM meta");
   const out: Record<string, string> = {};
   for (const r of rs.rows) out[String(r.key)] = String(r.value);
@@ -236,7 +244,7 @@ export async function getMeta(): Promise<Record<string, string>> {
 export type Stats = { places: number; candidates: number; cities: number; niches: number };
 
 /** Цифры для главной страницы. */
-export async function getStats(): Promise<Stats> {
+async function loadStats(): Promise<Stats> {
   const db = leadsDb();
   const [m, n, c] = await Promise.all([
     db.execute("SELECT value FROM meta WHERE key = 'total'"),
@@ -250,3 +258,11 @@ export async function getStats(): Promise<Stats> {
     niches: Number(n.rows[0].k),
   };
 }
+
+// Справочники меняются раз в сборку базы, поэтому держим их в памяти десять минут.
+const TTL = 10 * 60 * 1000;
+export const getNiches = (): Promise<Option[]> => cached("niches", TTL, loadNiches);
+export const getCities = (limit = 200): Promise<Option[]> => cached(`cities:${limit}`, TTL, () => loadCities(limit));
+export const getLabels = () => cached("labels", TTL, loadLabels);
+export const getMeta = (): Promise<Record<string, string>> => cached("meta", TTL, loadMeta);
+export const getStats = (): Promise<Stats> => cached("stats", TTL, loadStats);

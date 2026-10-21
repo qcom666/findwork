@@ -51,6 +51,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-accent-ink">
+          Перейти к содержимому
+        </a>
         <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
             <Link href="/" aria-label="FindWork, на главную">
@@ -76,7 +79,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</div>
+        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
         <footer className="border-t border-line">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-[1.4fr_1fr_1fr]">

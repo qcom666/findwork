@@ -179,7 +179,7 @@ body::before {
     border-color: var(--accent);
     color: var(--accent-ink);
   }
-  .chip .count { opacity: 0.65; font-variant-numeric: tabular-nums; }
+  .chip .count { opacity: 0.78; font-variant-numeric: tabular-nums; }
 
   .field {
     width: 100%;

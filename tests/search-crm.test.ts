@@ -11,6 +11,7 @@ process.env.LEADS_DB_URL = "file:" + path.join(dir, "leads.db");
 import { countByStatus, getCrm, listUnlockedIdsByStatus, saveCrm } from "../src/lib/crm";
 import { unlockLead } from "../src/lib/credits";
 import { __resetAppDbForTests } from "../src/lib/db";
+import { getMetrics, isAdminEmail } from "../src/lib/metrics";
 import { getLead, parseParams, searchLeads, toQuery } from "../src/lib/search";
 
 const COLS = "id,name,niche,category,city,address,lat,lon,phone,phones,email,website,site_kind,socials,has_phone,has_email,has_social,is_chain,confidence,sources,score,services,name_norm";
@@ -136,5 +137,40 @@ describe("статусы и заметки", () => {
     assert.deepEqual(await listUnlockedIdsByStatus(1, "new", 10), ["b"]);
     assert.deepEqual(await listUnlockedIdsByStatus(1, "replied", 10), ["a"]);
     assert.deepEqual((await listUnlockedIdsByStatus(1, "", 10)).sort(), ["a", "b"]);
+  });
+});
+
+describe("метрики владельца", () => {
+  it("считает людей, выручку и открытия, тестовые платежи не входят в выручку", async () => {
+    const app = await (await import("../src/lib/db")).appDb();
+    const t = Math.floor(Date.now() / 1000);
+    const pay = (id: string, user: number, status: string, provider: string) =>
+      app.execute({
+        sql: "INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at, paid_at) VALUES (?, ?, 's20', 20, 49000, ?, ?, ?, ?)",
+        args: [id, user, status, provider, t, status === "succeeded" ? t : null],
+      });
+    await pay("m1", 1, "succeeded", "yookassa");
+    await pay("m2", 2, "pending", "yookassa");
+    await pay("m3", 2, "succeeded", "mock");
+
+    const m = await getMetrics();
+    assert.equal(m.users.total, 2);
+    assert.equal(m.money.revenueRub, 490);
+    assert.equal(m.money.payments, 1);
+    assert.equal(m.money.pending, 1);
+    assert.equal(m.users.payers, 2, "платящими считаются и тестовые, но деньги только боевые");
+    assert.ok(m.usage.unlocks >= 2);
+    assert.ok(m.topNiches.some((n) => n.niche === "medical"));
+    assert.match(m.recentPayments[0].email, /^u1•••@t\.ru$|^u2•••@t\.ru$/);
+  });
+
+  it("админом считается только тот, кто указан в ADMIN_EMAILS", () => {
+    delete process.env.ADMIN_EMAILS;
+    assert.equal(isAdminEmail("boss@x.ru"), false);
+    process.env.ADMIN_EMAILS = " Boss@X.ru , other@x.ru";
+    assert.equal(isAdminEmail("boss@x.ru"), true);
+    assert.equal(isAdminEmail("someone@x.ru"), false);
+    assert.equal(isAdminEmail(null), false);
+    delete process.env.ADMIN_EMAILS;
   });
 });

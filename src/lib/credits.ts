@@ -35,6 +35,46 @@ export async function unlockLead(userId: number, leadId: string, cost = UNLOCK_C
   });
 }
 
+export type UnlockManyResult =
+  | { ok: true; opened: number; charged: number; balance: number }
+  | { ok: false; reason: "insufficient"; need: number; balance: number };
+
+/**
+ * Открывает сразу несколько лидов за один раз: либо все новые, либо ни одного (если не хватает кредитов).
+ * Уже открытые не списываются повторно.
+ */
+export async function unlockMany(userId: number, leadIds: string[], cost = UNLOCK_COST): Promise<UnlockManyResult> {
+  const ids = [...new Set(leadIds)];
+  return writeTx<UnlockManyResult>(async (tx) => {
+    const have = new Set(
+      ids.length
+        ? (
+            await tx.execute({
+              sql: `SELECT lead_id FROM unlocks WHERE user_id = ? AND lead_id IN (${ids.map(() => "?").join(",")})`,
+              args: [userId, ...ids],
+            })
+          ).rows.map((r) => String(r.lead_id))
+        : [],
+    );
+    const fresh = ids.filter((i) => !have.has(i));
+    const balance = Number((await tx.execute({ sql: "SELECT balance FROM users WHERE id = ?", args: [userId] })).rows[0]?.balance ?? 0);
+    const total = fresh.length * cost;
+    if (total > balance) return { value: { ok: false, reason: "insufficient", need: total, balance }, rollback: true };
+    if (!fresh.length) return { value: { ok: true, opened: 0, charged: 0, balance } };
+
+    const t = now();
+    await tx.execute({ sql: "UPDATE users SET balance = balance - ? WHERE id = ?", args: [total, userId] });
+    for (const id of fresh) {
+      await tx.execute({ sql: "INSERT INTO unlocks(user_id, lead_id, created_at) VALUES (?, ?, ?)", args: [userId, id, t] });
+      await tx.execute({
+        sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'unlock', ?, ?)",
+        args: [userId, -cost, id, t],
+      });
+    }
+    return { value: { ok: true, opened: fresh.length, charged: total, balance: balance - total } };
+  });
+}
+
 export async function grantCredits(userId: number, credits: number, reason: string, ref: string | null): Promise<void> {
   const db = await appDb();
   await db.batch(
