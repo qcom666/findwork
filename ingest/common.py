@@ -118,6 +118,7 @@ SERVICES = {
     "logo": "Логотип и фирменный стиль",
     "seo": "SEO и карточки на картах",
     "shop": "Интернет-магазин",
+    "signage": "Вывеска и наружная реклама",
 }
 
 
@@ -131,6 +132,8 @@ def lead_services(site_kind: str, has_social: bool, niche_flags: set):
         out.append("qr_menu")
     if "booking" in niche_flags:
         out.append("booking")
+    if "storefront" in niche_flags and site_kind != "real":
+        out.append("signage")
     if not has_social:
         out.append("smm")
     if site_kind in ("none", "builder"):
@@ -141,7 +144,7 @@ def lead_services(site_kind: str, has_social: bool, niche_flags: set):
         if s not in seen:
             seen.add(s)
             res.append(s)
-    return res[:5]
+    return res[:6]
 
 
 def lead_score(site_kind, has_phone, has_email, has_social, is_chain, confidence, ticket):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Status = { id: string; label: string };
 
@@ -10,6 +10,20 @@ export function LeadCrm({ leadId, statuses, status: initial, note: initialNote }
   const [note, setNote] = useState(initialNote);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const lastNote = useRef(initialNote);
+  const statusRef = useRef(initial);
+  statusRef.current = status;
+
+  // Когда человек нажал «отправить» под питчем, новый лид становится «Написал».
+  useEffect(() => {
+    const onSent = (e: Event) => {
+      if ((e as CustomEvent).detail?.leadId !== leadId || statusRef.current !== "new") return;
+      setStatus("contacted");
+      save({ status: "contacted" });
+    };
+    window.addEventListener("fw:contacted", onSent);
+    return () => window.removeEventListener("fw:contacted", onSent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
 
   async function save(patch: { status?: string; note?: string }) {
     setState("saving");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mailtoUrl, telegramUrl, telUrl, whatsappUrl } from "@/lib/send";
 
 type Finding = { level: "bad" | "warn" | "ok" | "info"; text: string };
 type Audit = { url: string; reachable: boolean; findings: Finding[]; ms?: number; builder?: string };
@@ -25,7 +26,7 @@ const LEVEL = {
 const EMPTY: Profile = { name: "", skills: "", portfolio: "", priceFrom: "" };
 const KEY = "findwork.profile";
 
-export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; hasWebsite: boolean; services: Service[] }) {
+export function LeadTools({ leadId, hasWebsite, services, phones, email }: { leadId: string; hasWebsite: boolean; services: Service[]; phones: string[]; email: string | null }) {
   const [profile, setProfile] = useState<Profile>(EMPTY);
   const [audit, setAudit] = useState<Audit | null>(null);
   const [auditing, setAuditing] = useState(false);
@@ -37,6 +38,7 @@ export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; ha
   const [pitch, setPitch] = useState<Pitch | null>(null);
   const [note, setNote] = useState("");
   const [source, setSource] = useState<"claude" | "template" | "">("");
+  const [pitchChannel, setPitchChannel] = useState("telegram");
 
   useEffect(() => {
     try {
@@ -75,7 +77,7 @@ export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; ha
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ошибка генерации");
-      setPitch(data.pitch); setSource(data.source); setNote(data.note ?? "");
+      setPitch(data.pitch); setSource(data.source); setNote(data.note ?? ""); setPitchChannel(channel);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -146,8 +148,9 @@ export function LeadTools({ leadId, hasWebsite, services }: { leadId: string; ha
 
         {pitch && (
           <div className="mt-5 space-y-4">
-            {pitch.subject && <Block title="Тема" text={pitch.subject} />}
-            <Block title={channel === "call" ? "Скрипт звонка" : "Сообщение"} text={pitch.message} />
+            {pitch.subject && pitchChannel === "email" && <Block title="Тема" text={pitch.subject} />}
+            <Block title={pitchChannel === "call" ? "Скрипт звонка" : "Сообщение"} text={pitch.message} />
+            <SendActions leadId={leadId} channel={pitchChannel} pitch={pitch} phones={phones} email={email} />
             <Block title="Если нет ответа через 3–4 дня" text={pitch.followup} />
             <p className="rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent">{pitch.angle}</p>
             <p className="text-xs text-muted">
@@ -189,6 +192,57 @@ function Block({ title, text }: { title: string; text: string }) {
         <button onClick={copy} className="text-xs text-accent hover:underline">{copied ? "Скопировано" : "Копировать"}</button>
       </div>
       <div className="whitespace-pre-wrap rounded-xl border border-line bg-bg px-3 py-2.5 text-sm leading-relaxed">{text}</div>
+    </div>
+  );
+}
+
+/** Кнопки отправки под готовым текстом. После клика лид сам получает этап «Написал». */
+function SendActions({ leadId, channel, pitch, phones, email }: { leadId: string; channel: string; pitch: Pitch; phones: string[]; email: string | null }) {
+  const [copied, setCopied] = useState(false);
+
+  function sent() {
+    window.dispatchEvent(new CustomEvent("fw:contacted", { detail: { leadId } }));
+  }
+
+  const wa = whatsappUrl(phones, pitch.message);
+  const tg = telegramUrl(phones);
+  const mail = mailtoUrl(email, pitch.subject || "Предложение", pitch.message);
+  const tel = telUrl(phones);
+
+  let action: React.ReactNode = null;
+  let hint = "";
+
+  if (channel === "whatsapp") {
+    if (wa) action = <a href={wa} target="_blank" rel="noopener noreferrer" onClick={sent} className="btn btn-primary btn-sm">Открыть WhatsApp с текстом</a>;
+    else hint = "Для WhatsApp нужен мобильный номер, а у заведения только городской. Попробуйте e-mail или звонок.";
+  } else if (channel === "telegram") {
+    if (tg) {
+      action = (
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={async () => {
+            try { await navigator.clipboard.writeText(pitch.message); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {}
+            window.open(tg, "_blank", "noopener,noreferrer");
+            sent();
+          }}
+        >
+          {copied ? "Текст скопирован, вставьте в чат" : "Скопировать текст и открыть Telegram"}
+        </button>
+      );
+    } else hint = "Для Telegram нужен мобильный номер, а у заведения только городской. Попробуйте e-mail или звонок.";
+  } else if (channel === "email") {
+    if (mail) action = <a href={mail} onClick={sent} className="btn btn-primary btn-sm">Написать на {email}</a>;
+    else hint = "E-mail заведения в данных нет. Попробуйте мессенджер или звонок.";
+  } else if (channel === "call") {
+    if (tel) action = <a href={tel} onClick={sent} className="btn btn-primary btn-sm">Позвонить {phones[0]}</a>;
+    else hint = "Телефона в данных нет.";
+  }
+
+  return (
+    <div className="space-y-2">
+      {action}
+      {hint && <p className="text-xs text-muted">{hint}</p>}
+      {action && <p className="text-xs text-muted">Сообщение отправляете вы сами. После клика лид отметится как «Написал».</p>}
     </div>
   );
 }

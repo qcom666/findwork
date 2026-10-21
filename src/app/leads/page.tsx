@@ -23,7 +23,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
 
   const p = parseParams(await searchParams);
   const user = await getCurrentUser();
-  const [{ leads, total, capped }, cities, niches, labels] = await Promise.all([
+  const [{ leads, total, capped, matchedNiches }, cities, niches, labels] = await Promise.all([
     searchLeads(p, user?.id),
     getCities(250),
     getNiches(),
@@ -108,7 +108,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
               </select>
             </Labeled>
             <Labeled label="Название" className="col-span-2 lg:col-span-1">
-              <input type="search" name="q" defaultValue={p.q} placeholder="Например, стом" className="field" />
+              <input type="search" name="q" defaultValue={p.q} placeholder="Ниша или слово: вывески, стоматология" className="field" />
             </Labeled>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -120,6 +120,12 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
           </div>
         </div>
       </FilterForm>
+
+      {p.q && matchedNiches.length > 0 && (
+        <p className="rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent">
+          По запросу «{p.q}» показаны заведения с таким словом в названии и вся ниша: {matchedNiches.map((id) => labels.niches[id] ?? id).join(", ")}.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
         <span>

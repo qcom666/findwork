@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PACKAGES } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { seller } from "@/lib/seller";
@@ -45,7 +46,7 @@ export default function Terms() {
         <p className="text-muted">
           Неиспользованные кредиты можно вернуть, написав на {seller.email()}: деньги вернутся тем же способом, которым была оплата.
           Кредиты, которыми уже открыты контакты, не возвращаются: услуга оказана в момент открытия. Если платёж прошёл, а кредиты
-          не появились, напишите нам, и мы разберёмся или вернём деньги.
+          не появились, напишите нам, и мы разберёмся или вернём деньги. Подробно: <Link href="/refund" className="text-accent hover:underline">«Оплата и возврат»</Link>.
         </p>
       </section>
 

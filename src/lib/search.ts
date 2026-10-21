@@ -1,4 +1,5 @@
 import { cached } from "./cache";
+import { matchNiches } from "./niche-search";
 import { getAllCities } from "./seo";
 import { unlockedAmong } from "./credits";
 import { leadsDb } from "./db";
@@ -88,7 +89,7 @@ export type Params = {
   page: number;
 };
 
-export const SERVICE_IDS = ["site", "redesign", "qr_menu", "booking", "smm", "logo", "seo", "shop"] as const;
+export const SERVICE_IDS = ["site", "redesign", "qr_menu", "booking", "smm", "logo", "signage", "seo", "shop"] as const;
 export const MIN_SCORES = [0, 40, 50, 60, 70, 80] as const;
 
 export const PAGE_SIZE = 30;
@@ -143,7 +144,7 @@ function ftsQuery(q: string): string | null {
   return tokens.slice(0, 6).map((t) => `"${t}"*`).join(" ");
 }
 
-function where(p: Params): { sql: string; args: (string | number)[] } {
+function where(p: Params, niches: string[] = []): { sql: string; args: (string | number)[] } {
   const w: string[] = [];
   const a: (string | number)[] = [];
   if (p.city) { w.push("p.city = ?"); a.push(p.city); }
@@ -160,7 +161,16 @@ function where(p: Params): { sql: string; args: (string | number)[] } {
   if (p.social) w.push("p.has_social = 1");
   if (!p.chains) w.push("p.is_chain = 0");
   const fts = p.q ? ftsQuery(p.q) : null;
-  if (fts) { w.push("p.rowid IN (SELECT rowid FROM places_fts WHERE places_fts MATCH ?)"); a.push(fts); }
+  if (fts) {
+    // Слово ищем и в названиях, и среди подходящих ниш: «вывески» найдёт и «Вывески Плюс», и всю нишу рекламы.
+    if (niches.length) {
+      w.push(`(p.rowid IN (SELECT rowid FROM places_fts WHERE places_fts MATCH ?) OR p.niche IN (${niches.map(() => "?").join(",")}))`);
+      a.push(fts, ...niches);
+    } else {
+      w.push("p.rowid IN (SELECT rowid FROM places_fts WHERE places_fts MATCH ?)");
+      a.push(fts);
+    }
+  }
   return { sql: w.length ? "WHERE " + w.join(" AND ") : "", args: a };
 }
 
@@ -196,9 +206,10 @@ async function totalFor(p: Params, sql: string, args: (string | number)[]): Prom
   });
 }
 
-export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number; capped: boolean }> {
+export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number; capped: boolean; matchedNiches: string[] }> {
   const db = leadsDb();
-  const { sql, args } = where(p);
+  const matchedNiches = p.q ? matchNiches(p.q, await getNiches()) : [];
+  const { sql, args } = where(p, matchedNiches);
   const [count, page] = await Promise.all([
     totalFor(p, sql, args),
     db.execute({
@@ -208,7 +219,7 @@ export async function searchLeads(p: Params, userId?: number | null): Promise<{ 
   ]);
   const list = rows(page);
   const open = await unlockedAmong(userId, list.map((r) => r.id));
-  return { leads: list.map((r) => toLead(r, open.has(r.id))), total: count.total, capped: count.capped };
+  return { leads: list.map((r) => toLead(r, open.has(r.id))), total: count.total, capped: count.capped, matchedNiches };
 }
 
 /** Заведение для показа пользователю: контакты только если он их открыл. */

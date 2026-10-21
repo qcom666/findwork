@@ -163,7 +163,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </div>
 
         {lead.unlocked ? (
-          <LeadTools leadId={lead.id} hasWebsite={lead.has.website} services={services} />
+          <LeadTools leadId={lead.id} hasWebsite={lead.has.website} services={services} phones={lead.phones} email={lead.email} />
         ) : (
           <UnlockPanel leadId={lead.id} loggedIn={!!user} balance={user?.balance ?? 0} cost={UNLOCK_COST} bonus={SIGNUP_BONUS} />
         )}

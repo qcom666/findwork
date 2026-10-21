@@ -4,7 +4,7 @@ import { getAllCities, getSitemapPairs, MIN_PAGE } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.APP_URL || "https://findwork-rouge.vercel.app";
-  const pages: MetadataRoute.Sitemap = ["/", "/leads", "/pricing", "/about", "/terms", "/privacy"].map((p) => ({
+  const pages: MetadataRoute.Sitemap = ["/", "/leads", "/pricing", "/about", "/terms", "/refund", "/contacts", "/privacy"].map((p) => ({
     url: base + p,
     changeFrequency: p === "/leads" ? "daily" : "monthly",
     priority: p === "/" ? 1 : 0.6,

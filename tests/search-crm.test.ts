@@ -96,6 +96,16 @@ describe("фильтры каталога", () => {
     assert.deepEqual(await ids({ q: "стом" }), ["a"]);
     assert.deepEqual(await ids({ q: "кофе" }), ["b"]);
   });
+  it("слово из своей ниши находит и заведения без него в названии", async () => {
+    assert.deepEqual(await ids({ q: "кафе" }), ["b"], "Кофейня Зерно из ниши food, хотя слова «кафе» в названии нет");
+    assert.deepEqual(await ids({ q: "автомойка" }), ["c"]);
+    const r = await searchLeads(parseParams({ q: "стоматология" }));
+    assert.deepEqual(r.matchedNiches, ["medical"]);
+  });
+  it("услуга «Вывеска» допустима как фильтр", async () => {
+    assert.equal(parseParams({ service: "signage" }).service, "signage");
+    assert.deepEqual(await ids({ service: "signage" }), []);
+  });
   it("кавычки и спецсимволы в запросе не ломают поиск", async () => {
     assert.deepEqual(await ids({ q: '"; DROP TABLE places; --' }), []);
     assert.equal((await ids({})).length, 4);

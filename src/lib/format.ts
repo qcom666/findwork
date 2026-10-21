@@ -50,6 +50,7 @@ export const SERVICE_SHORT: Record<string, string> = {
   booking: "Онлайн-запись",
   smm: "Соцсети",
   logo: "Лого и стиль",
+  signage: "Вывески",
   seo: "SEO и карты",
   shop: "Интернет-магазины",
 };

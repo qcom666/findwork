@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RoiCalculator } from "@/components/RoiCalculator";
 import { ScoreRing } from "@/components/ScoreRing";
 import { getCurrentUser } from "@/lib/auth";
 import { PACKAGES } from "@/lib/billing";
@@ -39,6 +40,8 @@ export default async function Home() {
     getCurrentUser(),
   ]);
   const topNiches = niches.slice(0, 8);
+  const mid = PACKAGES.find((p) => p.id === "s60") ?? PACKAGES[0];
+  const calcPrice = mid.priceRub / mid.credits;
 
   return (
     <div className="space-y-20 pb-8">
@@ -161,6 +164,11 @@ export default async function Home() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="space-y-8">
+        <SectionTitle title="Сколько можно заработать" sub="Подставьте свои цифры: цена лида считается по пакету «Стандарт»." />
+        <RoiCalculator pricePerLead={calcPrice} />
       </section>
 
       <section className="space-y-8">
