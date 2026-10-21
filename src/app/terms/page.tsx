@@ -29,6 +29,7 @@ export default function Terms() {
             <li key={p.id}>{p.credits} кредитов — {p.priceRub.toLocaleString("ru-RU")} ₽</li>
           ))}
           {SIGNUP_BONUS > 0 && <li>При регистрации начисляется {SIGNUP_BONUS} бесплатных кредитов.</li>}
+          <li>Промокоды и награда за приглашённых начисляются кредитами и не обмениваются на деньги.</li>
         </ul>
         <p className="text-muted">Кредиты не имеют срока действия и не обмениваются на деньги, кроме случаев, указанных в разделе 4.</p>
       </section>

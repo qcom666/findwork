@@ -1,23 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/Small";
+import { CopyField } from "@/components/CopyField";
+import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
 import { listPayments } from "@/lib/billing";
-import { getLedger } from "@/lib/credits";
+import { getLedger, referralReward } from "@/lib/credits";
 import { plural } from "@/lib/format";
 import { getLeadsUnlocked } from "@/lib/search";
+import { siteUrl } from "@/lib/site";
+import { getReferralInfo } from "@/lib/users";
 
 export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
-const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого" };
 const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 
 export default async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
-  const [payments, ledger] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50)]);
+  const [payments, ledger, ref] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id)]);
+  const reward = referralReward();
+  const inviteLink = `${await siteUrl()}/r/${ref.code}`;
   const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
   const names = new Map((await getLeadsUnlocked(unlockIds)).map((l) => [l.id, l.name]));
 
@@ -35,6 +41,24 @@ export default async function Account() {
           <LogoutButton />
         </div>
       </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">Промокод</h2>
+        <PromoForm />
+      </section>
+
+      {reward > 0 && (
+        <section className="card space-y-3 p-5">
+          <div>
+            <h2 className="text-sm font-semibold">Пригласите коллегу и получите {reward} кредитов</h2>
+            <p className="text-sm text-muted">Когда приглашённый впервые купит кредиты, вам начислится {reward}. Награда одна за каждого приглашённого.</p>
+          </div>
+          <CopyField value={inviteLink} />
+          <p className="text-sm text-muted">
+            Зарегистрировалось: <b className="text-ink">{ref.invited}</b> · купили: <b className="text-ink">{ref.paid}</b> · заработано кредитов: <b className="text-ink">{ref.earned}</b>
+          </p>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Платежи</h2>

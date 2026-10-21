@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
-import { SIGNUP_BONUS } from "./credits";
-import { appDb, writeTx } from "./db";
+import { appDb } from "./db";
 import { hashPassword, newToken, sha256, verifyPassword } from "./password";
+import { createUser } from "./users";
 
 const COOKIE = "fw_session";
 const SESSION_DAYS = 30;
@@ -19,7 +19,7 @@ export function validateCredentials(email: string, password: string): string | n
   return null;
 }
 
-async function startSession(userId: number): Promise<void> {
+export async function startSession(userId: number): Promise<void> {
   const db = await appDb();
   const { token, hash } = newToken();
   const t = now();
@@ -37,27 +37,11 @@ async function startSession(userId: number): Promise<void> {
 }
 
 export async function signUp(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const mail = email.trim().toLowerCase();
   const passHash = await hashPassword(password);
-  const t = now();
-  const created = await writeTx<number | null>(async (tx) => {
-    const dup = await tx.execute({ sql: "SELECT 1 FROM users WHERE email = ?", args: [mail] });
-    if (dup.rows.length) return { value: null, rollback: true };
-    const ins = await tx.execute({
-      sql: "INSERT INTO users(email, pass_hash, balance, created_at) VALUES (?, ?, ?, ?)",
-      args: [mail, passHash, SIGNUP_BONUS, t],
-    });
-    const userId = Number(ins.lastInsertRowid);
-    if (SIGNUP_BONUS > 0) {
-      await tx.execute({
-        sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'signup_bonus', NULL, ?)",
-        args: [userId, SIGNUP_BONUS, t],
-      });
-    }
-    return { value: userId };
-  });
-  if (created === null) return { ok: false, error: "Этот e-mail уже зарегистрирован" };
-  await startSession(created);
+  const ref = (await cookies()).get("fw_ref")?.value ?? null;
+  const r = await createUser(email, passHash, ref);
+  if (!r.ok) return r;
+  await startSession(r.userId);
   return { ok: true };
 }
 

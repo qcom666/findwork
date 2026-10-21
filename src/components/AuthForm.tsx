@@ -54,6 +54,7 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
           />
         </label>
         {err && <p className="text-sm text-bad">{err}</p>}
+        {!signup && <p className="text-right text-sm"><Link href="/forgot" className="text-muted hover:text-ink hover:underline">Забыли пароль?</Link></p>}
         <button disabled={busy} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-60">
           {busy ? "Подождите…" : signup ? "Создать аккаунт" : "Войти"}
         </button>

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import net from "node:net";
+import { referralReward } from "./credits";
 import { appDb, writeTx } from "./db";
 
 export type Package = { id: string; title: string; credits: number; priceRub: number };
@@ -144,6 +145,23 @@ export async function fulfillPayment(paymentId: string): Promise<boolean> {
       sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'purchase', ?, ?)",
       args: [Number(p.user_id), Number(p.credits), paymentId, t],
     });
+
+    // Реферальная награда: пригласивший получает кредиты один раз, за первую покупку приглашённого.
+    const reward = referralReward();
+    if (reward > 0) {
+      const ref = (await tx.execute({ sql: "SELECT referred_by FROM users WHERE id = ?", args: [Number(p.user_id)] })).rows[0]?.referred_by;
+      if (ref != null && Number(ref) !== Number(p.user_id)) {
+        const done = await tx.execute({ sql: "SELECT 1 FROM referral_rewards WHERE referred_id = ?", args: [Number(p.user_id)] });
+        if (!done.rows.length) {
+          await tx.execute({ sql: "INSERT INTO referral_rewards(referred_id, referrer_id, credits, created_at) VALUES (?, ?, ?, ?)", args: [Number(p.user_id), Number(ref), reward, t] });
+          await tx.execute({ sql: "UPDATE users SET balance = balance + ? WHERE id = ?", args: [reward, Number(ref)] });
+          await tx.execute({
+            sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'referral', ?, ?)",
+            args: [Number(ref), reward, String(p.user_id), t],
+          });
+        }
+      }
+    }
     return { value: true };
   });
 }

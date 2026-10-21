@@ -1,4 +1,5 @@
 import { BuyButton } from "@/components/BuyButton";
+import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
 import { mockMode, PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
@@ -51,6 +52,13 @@ export default async function Pricing() {
           </section>
         ))}
       </div>
+
+      {user && (
+        <section className="max-w-md space-y-2">
+          <h2 className="text-sm font-semibold">Есть промокод?</h2>
+          <PromoForm />
+        </section>
+      )}
 
       <p className="max-w-2xl text-xs text-muted">
         Оплата банковской картой, СБП и другими способами через ЮKassa. Данные карты мы не видим и не храним. Условия возврата — в{" "}

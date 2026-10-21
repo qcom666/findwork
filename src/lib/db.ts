@@ -94,12 +94,56 @@ const SCHEMA = [
      created_at INTEGER NOT NULL,
      PRIMARY KEY (user_id, lead_id)
    )`,
+  `CREATE TABLE IF NOT EXISTS password_resets (
+     token_hash TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     expires_at INTEGER NOT NULL,
+     used INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_resets_user ON password_resets(user_id)`,
+  `CREATE TABLE IF NOT EXISTS promo_codes (
+     code TEXT PRIMARY KEY,
+     credits INTEGER NOT NULL,
+     max_uses INTEGER,
+     used INTEGER NOT NULL DEFAULT 0,
+     expires_at INTEGER,
+     note TEXT NOT NULL DEFAULT '',
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS promo_redemptions (
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     code TEXT NOT NULL REFERENCES promo_codes(code),
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, code)
+   )`,
+  `CREATE TABLE IF NOT EXISTS referral_rewards (
+     referred_id INTEGER PRIMARY KEY REFERENCES users(id),
+     referrer_id INTEGER NOT NULL REFERENCES users(id),
+     credits INTEGER NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_referral_referrer ON referral_rewards(referrer_id)`,
   `CREATE TABLE IF NOT EXISTS rate_limits (
      key TEXT PRIMARY KEY,
      n INTEGER NOT NULL,
      reset_at INTEGER NOT NULL
    )`,
 ];
+
+/** Колонки, добавленные позже создания таблицы users. Безопасно запускать повторно и из нескольких процессов сразу. */
+async function migrate(client: Client): Promise<void> {
+  const cols = (await client.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
+  for (const [name, ddl] of [["ref_code", "TEXT"], ["referred_by", "INTEGER"]] as const) {
+    if (cols.includes(name)) continue;
+    try {
+      await client.execute(`ALTER TABLE users ADD COLUMN ${name} ${ddl}`);
+    } catch (e) {
+      if (!/duplicate column/i.test((e as Error).message)) throw e;
+    }
+  }
+  await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
+}
 
 export function appDb(): Promise<Client> {
   g.__fwApp ??= (async () => {
@@ -108,6 +152,7 @@ export function appDb(): Promise<Client> {
       authToken: process.env.APP_DB_AUTH_TOKEN || undefined,
     });
     await client.batch(SCHEMA, "write");
+    await migrate(client);
     return client;
   })().catch((e) => {
     g.__fwApp = undefined; // не кэшируем неудачу: следующий запрос попробует снова
@@ -120,6 +165,7 @@ export function appDb(): Promise<Client> {
 export async function __resetAppDbForTests(url: string): Promise<Client> {
   const client = createClient({ url });
   await client.batch(SCHEMA, "write");
+  await migrate(client);
   g.__fwApp = Promise.resolve(client);
   return client;
 }

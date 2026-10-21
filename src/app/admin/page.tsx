@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { AdminPromoForm } from "@/components/AdminPromoForm";
+import { listPromos } from "@/lib/promo";
 import { getLabels } from "@/lib/search";
 import { getMetrics, isAdminEmail } from "@/lib/metrics";
 
@@ -15,7 +17,7 @@ export default async function Admin() {
   // Для всех остальных страницы не существует: ADMIN_EMAILS не задан или вы не в списке.
   if (!user || !isAdminEmail(user.email)) notFound();
 
-  const [m, labels] = await Promise.all([getMetrics(), getLabels()]);
+  const [m, labels, promos] = await Promise.all([getMetrics(), getLabels(), listPromos(30)]);
   const conv = m.users.total ? Math.round((m.users.payers / m.users.total) * 1000) / 10 : 0;
 
   return (
@@ -56,6 +58,22 @@ export default async function Admin() {
           </ul>
         </section>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Промокоды</h2>
+        <AdminPromoForm />
+        <ul className="card divide-y divide-line text-sm">
+          {promos.length === 0 && <li className="px-4 py-3 text-muted">Кодов пока нет.</li>}
+          {promos.map((p) => (
+            <li key={p.code} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+              <span><b className="font-mono">{p.code}</b> · {p.credits} кредитов{p.note ? ` · ${p.note}` : ""}</span>
+              <span className="text-muted">
+                использован {p.used}{p.maxUses ? ` из ${p.maxUses}` : ""}{p.expiresAt ? ` · до ${new Date(p.expiresAt * 1000).toLocaleDateString("ru-RU")}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Последние платежи</h2>
