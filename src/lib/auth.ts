@@ -11,7 +11,7 @@ const SESSION_DAYS = 30;
 const now = () => Math.floor(Date.now() / 1000);
 
 /** label: как показывать человека: почта или, если входил через Telegram, @username и имя. */
-export type User = { id: number; email: string; balance: number; label: string };
+export type User = { id: number; email: string; balance: number; label: string; tgLinked: boolean; tgUsername: string | null; hasPassword: boolean };
 
 export function userLabel(email: string, tgUsername: string | null, displayName: string | null): string {
   if (!isTgEmail(email)) return email;
@@ -95,7 +95,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   try {
     const db = await appDb();
     const r = await db.execute({
-      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_username, u.display_name FROM sessions s JOIN users u ON u.id = s.user_id
+      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_id, u.tg_username, u.display_name, u.pass_hash FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ? AND s.expires_at > ?`,
       args: [sha256(token), now()],
     });
@@ -112,6 +112,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     const email = String(row.email);
     return {
       id: Number(row.id), email, balance,
+      tgLinked: row.tg_id != null, tgUsername: row.tg_username == null ? null : String(row.tg_username), hasPassword: String(row.pass_hash) !== "",
       label: userLabel(email, row.tg_username == null ? null : String(row.tg_username), row.display_name == null ? null : String(row.display_name)),
     };
   } catch {

@@ -6,28 +6,32 @@ import { ConsentChecks } from "./ConsentChecks";
 
 type Widget = Record<string, string | number>;
 type TgWindow = Window & { onTelegramAuth?: (user: Widget) => void };
+export type MergeSummary = { balance: number; unlocks: number; payments: number; subscriptions: number; reports: number; claims: number };
 
 /**
- * Вход и регистрация через Telegram Login Widget. Если аккаунта ещё нет, сервер просит согласия:
- * показываем две отметки и отправляем те же данные виджета повторно.
+ * Telegram Login Widget в двух режимах.
+ *  login: вход и регистрация. Если аккаунта ещё нет, сервер просит согласия: показываем две отметки и отправляем те же данные виджета повторно.
+ *  link: привязка Telegram к аккаунту, в который вы уже вошли. Если этот Telegram заходил отдельно и у него свой аккаунт,
+ *        сервер присылает сводку, и мы просим подтвердить объединение.
  * bot: имя бота; null: вход не настроен (в продакшене блок скрывается страницей, локально показываем подсказку).
  */
-export function TelegramAuth({ bot, next, hint, title }: { bot: string | null; next: string; hint?: boolean; title: string }) {
+export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: { bot: string | null; next?: string; hint?: boolean; title: string; mode?: "login" | "link" }) {
   const router = useRouter();
   const holder = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<Widget | null>(null);
+  const [merge, setMerge] = useState<{ auth: Widget; info: MergeSummary } | null>(null);
   const [accept, setAccept] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  async function send(auth: Widget, flags: { accept?: boolean; consent?: boolean } = {}) {
+  async function send(auth: Widget, extra: { accept?: boolean; consent?: boolean; confirm?: boolean } = {}) {
     setBusy(true); setErr("");
     try {
-      const res = await fetch("/api/auth/telegram", {
+      const res = await fetch(mode === "link" ? "/api/auth/telegram/link" : "/api/auth/telegram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auth, ...flags }),
+        body: JSON.stringify({ auth, ...extra }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.needConsent) {
@@ -35,12 +39,18 @@ export function TelegramAuth({ bot, next, hint, title }: { bot: string | null; n
         setBusy(false);
         return;
       }
-      if (!res.ok) throw new Error(data.error ?? "Не удалось войти через Telegram");
-      router.push(next);
+      if (data.needConfirm) {
+        setMerge({ auth, info: data.info });
+        setBusy(false);
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Не удалось выполнить вход через Telegram");
+      if (mode !== "link") router.push(next);
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
       setPending(null);
+      setMerge(null);
       setBusy(false);
     }
   }
@@ -64,7 +74,7 @@ export function TelegramAuth({ bot, next, hint, title }: { bot: string | null; n
     };
     // send не меняет поведение между рендерами, а перезапуск скрипта сбросил бы виджет
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bot]);
+  }, [bot, pending, merge]);
 
   if (!bot) {
     return hint ? (
@@ -78,8 +88,25 @@ export function TelegramAuth({ bot, next, hint, title }: { bot: string | null; n
     <div className="space-y-3">
       <p className="text-center text-sm text-muted">{title}</p>
 
-      {pending ? (
+      {merge ? (
+        <div key="merge" className="space-y-3 rounded-xl border border-line bg-surface-2 p-4 text-sm">
+          <p>Этот Telegram уже заходил на сайт отдельно, и у него есть свой аккаунт:</p>
+          <ul className="list-disc space-y-0.5 pl-5 text-muted">
+            <li>кредитов: <b className="text-ink">{merge.info.balance}</b></li>
+            <li>открытых заведений: <b className="text-ink">{merge.info.unlocks}</b></li>
+            {merge.info.payments > 0 && <li>оплат: <b className="text-ink">{merge.info.payments}</b></li>}
+            {merge.info.subscriptions > 0 && <li>подписок: <b className="text-ink">{merge.info.subscriptions}</b></li>}
+            {merge.info.reports > 0 && <li>отчётов клиентам: <b className="text-ink">{merge.info.reports}</b></li>}
+          </ul>
+          <p className="text-muted">Всё это перейдёт в текущий аккаунт, а отдельный Telegram-аккаунт перестанет существовать. Отменить это нельзя.</p>
+          <div className="flex gap-2">
+            <button disabled={busy} className="btn btn-primary btn-sm" onClick={() => void send(merge.auth, { confirm: true })}>{busy ? "Объединяю…" : "Объединить аккаунты"}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMerge(null)}>Отмена</button>
+          </div>
+        </div>
+      ) : pending ? (
         <form
+          key="consent"
           onSubmit={(e) => {
             e.preventDefault();
             void send(pending, { accept, consent });
@@ -94,7 +121,8 @@ export function TelegramAuth({ bot, next, hint, title }: { bot: string | null; n
           </div>
         </form>
       ) : (
-        <div className="flex min-h-[40px] justify-center" ref={holder} aria-label="Войти через Telegram" />
+        // key: без него React переиспользует этот же div под панель подтверждения, а очистка виджета стёрла бы её содержимое
+        <div key="widget" className="flex min-h-[40px] justify-center" ref={holder} aria-label={mode === "link" ? "Привязать Telegram" : "Войти через Telegram"} />
       )}
       {err && <p className="text-center text-sm text-bad">{err}</p>}
     </div>

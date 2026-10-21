@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/Small";
 import { CopyField } from "@/components/CopyField";
+import { TelegramLinkBox } from "@/components/TelegramLinkBox";
 import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
 import { listPayments, settlePendingForUser } from "@/lib/billing";
@@ -12,6 +13,7 @@ import { activeClaimCount } from "@/lib/claims";
 import { getEntitlements } from "@/lib/entitlements";
 import { reportQuota } from "@/lib/reports";
 import { getSubscriptions } from "@/lib/subscriptions";
+import { telegramBotUsername, telegramConfigured } from "@/lib/telegram";
 import { siteUrl } from "@/lib/site";
 import { getReferralInfo } from "@/lib/users";
 
@@ -74,6 +76,14 @@ export default async function Account() {
           </p>
         )}
       </section>
+
+      <TelegramLinkBox
+        bot={telegramConfigured() ? telegramBotUsername() : null}
+        hint={!telegramConfigured() && process.env.NODE_ENV !== "production"}
+        linked={user.tgLinked}
+        username={user.tgUsername}
+        canUnlink={user.hasPassword}
+      />
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Промокод</h2>

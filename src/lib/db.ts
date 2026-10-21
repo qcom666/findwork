@@ -169,6 +169,15 @@ const SCHEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS ix_reports_user ON audit_reports(user_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS ix_reports_lead ON audit_reports(user_id, lead_id)`,
+  // След объединения аккаунтов (привязка Telegram к аккаунту с почтой): кого во что влили и что перенесли. Нужен для разбора споров.
+  `CREATE TABLE IF NOT EXISTS account_merges (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     source_id INTEGER NOT NULL,
+     target_id INTEGER NOT NULL,
+     source_email TEXT NOT NULL,
+     summary TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
 ];
 
 /** Колонки, добавленные позже создания таблицы users. Безопасно запускать повторно и из нескольких процессов сразу. */
