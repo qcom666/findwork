@@ -178,20 +178,28 @@ async function fastTotal(p: Params): Promise<number | null> {
   return (await getNiches()).reduce((a, n) => a + n.nNeed, 0);
 }
 
-async function totalFor(p: Params, sql: string, args: (string | number)[]): Promise<number> {
+/** Дальше этого числа точно считать незачем: так «непопулярные» сочетания фильтров не заставляют обходить весь каталог. */
+const countCap = () => Number(process.env.COUNT_CAP) || 10_000;
+
+async function totalFor(p: Params, sql: string, args: (string | number)[]): Promise<{ total: number; capped: boolean }> {
   // Число найденных не меняется между сборками базы, поэтому листание страниц не пересчитывает его заново.
   return cached(`total:${sql}:${JSON.stringify(args)}`, 10 * 60 * 1000, async () => {
     const fast = await fastTotal(p);
-    if (fast !== null) return fast;
-    const r = await leadsDb().execute({ sql: `SELECT count(*) AS n FROM places p ${sql}`, args });
-    return Number(r.rows[0].n);
+    if (fast !== null) return { total: fast, capped: false };
+    const cap = countCap();
+    const r = await leadsDb().execute({
+      sql: `SELECT count(*) AS n FROM (SELECT 1 FROM places p ${sql} LIMIT ?)`,
+      args: [...args, cap + 1],
+    });
+    const n = Number(r.rows[0].n);
+    return n > cap ? { total: cap, capped: true } : { total: n, capped: false };
   });
 }
 
-export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number }> {
+export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number; capped: boolean }> {
   const db = leadsDb();
   const { sql, args } = where(p);
-  const [total, page] = await Promise.all([
+  const [count, page] = await Promise.all([
     totalFor(p, sql, args),
     db.execute({
       sql: `SELECT p.* FROM places p ${sql} ORDER BY ${p.sort === "name" ? "p.name" : "p.score DESC"}, p.rowid LIMIT ? OFFSET ?`,
@@ -200,7 +208,7 @@ export async function searchLeads(p: Params, userId?: number | null): Promise<{ 
   ]);
   const list = rows(page);
   const open = await unlockedAmong(userId, list.map((r) => r.id));
-  return { leads: list.map((r) => toLead(r, open.has(r.id))), total };
+  return { leads: list.map((r) => toLead(r, open.has(r.id))), total: count.total, capped: count.capped };
 }
 
 /** Заведение для показа пользователю: контакты только если он их открыл. */

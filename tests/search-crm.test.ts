@@ -11,6 +11,7 @@ process.env.LEADS_DB_URL = "file:" + path.join(dir, "leads.db");
 import { countByStatus, getCrm, listUnlockedIdsByStatus, saveCrm } from "../src/lib/crm";
 import { unlockLead } from "../src/lib/credits";
 import { __resetAppDbForTests } from "../src/lib/db";
+import { clearCache } from "../src/lib/cache";
 import { getMetrics, isAdminEmail } from "../src/lib/metrics";
 import { getLead, parseParams, searchLeads, toQuery } from "../src/lib/search";
 
@@ -110,6 +111,23 @@ describe("подсчёт найденных", () => {
     assert.equal((await searchLeads(parseParams({ niche: "medical" }))).total, await count("AND niche = 'medical'"));
     assert.equal((await searchLeads(parseParams({ city: "Казань", niche: "food" }))).total, await count("AND city = 'Казань' AND niche = 'food'"));
     assert.equal((await searchLeads(parseParams({ city: "Нет такого" }))).total, 0, "город вне справочника считается честно");
+  });
+});
+
+describe("предел подсчёта", () => {
+  it("если найденных больше предела, число обрезается и помечается как приблизительное", async () => {
+    clearCache(); // подсчёты кэшируются, а предел в этом тесте меняется
+    process.env.COUNT_CAP = "2";
+    try {
+      const r = await searchLeads(parseParams({ phone: "1", q: "" }));
+      assert.deepEqual([r.total, r.capped], [2, true]);
+      process.env.COUNT_CAP = "3";
+      const exact = await searchLeads(parseParams({ phone: "1", min: "40" }));
+      assert.deepEqual([exact.total, exact.capped], [3, false], "ровно по пределу: число точное");
+    } finally {
+      delete process.env.COUNT_CAP;
+      clearCache();
+    }
   });
 });
 

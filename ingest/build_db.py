@@ -262,6 +262,10 @@ def write_db(rows, meta):
         CREATE INDEX ix_niche_score ON places(niche, score DESC);
         CREATE INDEX ix_score ON places(score DESC);
         CREATE INDEX ix_site ON places(site_kind);
+        -- под запросы каталога: порядок по оценке или названию без сортировки в памяти
+        CREATE INDEX ix_chain_score ON places(is_chain, score DESC);
+        CREATE INDEX ix_chain_name ON places(is_chain, name);
+        CREATE INDEX ix_city_chain_score ON places(city, is_chain, score DESC);
         CREATE VIRTUAL TABLE places_fts USING fts5(name, content='places', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2');
         INSERT INTO places_fts(rowid, name) SELECT rowid, name FROM places;
         INSERT INTO places_fts(places_fts) VALUES('optimize');

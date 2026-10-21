@@ -23,7 +23,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
 
   const p = parseParams(await searchParams);
   const user = await getCurrentUser();
-  const [{ leads, total }, cities, niches, labels] = await Promise.all([
+  const [{ leads, total, capped }, cities, niches, labels] = await Promise.all([
     searchLeads(p, user?.id),
     getCities(250),
     getNiches(),
@@ -123,7 +123,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
         <span>
-          Найдено <b className="text-ink">{total.toLocaleString("ru-RU")}</b> {plural(total, "заведение", "заведения", "заведений")}
+          Найдено <b className="text-ink">{total.toLocaleString("ru-RU")}{capped ? "+" : ""}</b> {plural(total, "заведение", "заведения", "заведений")}
           {pages > 1 ? ` · страница ${p.page} из ${pages.toLocaleString("ru-RU")}` : ""}
         </span>
       </div>
