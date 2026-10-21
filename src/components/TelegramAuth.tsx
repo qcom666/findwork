@@ -4,23 +4,20 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ConsentChecks } from "./ConsentChecks";
 
-type Widget = Record<string, string | number>;
-type TgWindow = Window & { onTelegramAuth?: (user: Widget) => void };
 export type MergeSummary = { balance: number; unlocks: number; payments: number; subscriptions: number; reports: number; claims: number };
-/** Откуда пришло подтверждение: окно Telegram (данные виджета) или бот (одноразовый токен запроса). */
-type Src = { t: "widget"; auth: Widget } | { t: "bot"; token: string };
+/** Запрос входа через бота: одноразовый токен, по которому браузер опрашивает сервер. */
+type Src = { token: string };
 
 /**
- * Telegram в двух режимах и двумя способами.
- *  login: вход и регистрация. Если аккаунта ещё нет, сервер просит согласия: показываем две отметки и отправляем запрос повторно.
+ * Вход и привязка Telegram через бота: кнопка просит у сервера одноразовую ссылку на бота, человек нажимает Start и
+ * «Да, это я» в Telegram, а страница опрашивает сервер и входит сама.
+ *  login: вход и регистрация. Если аккаунта ещё нет, сервер просит согласия: показываем две отметки и опрашиваем снова.
  *  link: привязка Telegram к аккаунту, в который вы уже вошли. Если этот Telegram заходил отдельно и у него свой аккаунт,
  *        сервер присылает сводку, и мы просим подтвердить объединение.
- * Способы: кнопка Telegram (окно oauth.telegram.org) и «Войти через бота» (ссылка на бота и Start): второй не зависит от окна.
  * bot: имя бота; null: вход не настроен (в продакшене блок скрывается страницей, локально показываем подсказку).
  */
 export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: { bot: string | null; next?: string; hint?: boolean; title: string; mode?: "login" | "link" }) {
   const router = useRouter();
-  const holder = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
   const [pending, setPending] = useState<Src | null>(null);
   const [merge, setMerge] = useState<{ src: Src; info: MergeSummary } | null>(null);
@@ -40,11 +37,10 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
     inFlight.current = true;
     if (!silent) { setBusy(true); setErr(""); }
     try {
-      const url = src.t === "bot" ? "/api/auth/telegram/bot/poll" : mode === "link" ? "/api/auth/telegram/link" : "/api/auth/telegram";
-      const res = await fetch(url, {
+      const res = await fetch("/api/auth/telegram/bot/poll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(src.t === "bot" ? { token: src.token, ...extra } : { auth: src.auth, ...extra }),
+        body: JSON.stringify({ token: src.token, ...extra }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.status === "waiting") return;
@@ -76,32 +72,10 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
     }
   }
 
-  // Окно Telegram: скрипт виджета ставит кнопку и вызывает onTelegramAuth после подтверждения.
-  useEffect(() => {
-    const box = holder.current;
-    if (!bot || !box) return;
-    (window as TgWindow).onTelegramAuth = (user) => void call({ t: "widget", auth: user });
-    const s = document.createElement("script");
-    s.src = "https://telegram.org/js/telegram-widget.js?22";
-    s.async = true;
-    s.setAttribute("data-telegram-login", bot);
-    s.setAttribute("data-size", "large");
-    s.setAttribute("data-radius", "10");
-    s.setAttribute("data-userpic", "false");
-    s.setAttribute("data-onauth", "onTelegramAuth(user)");
-    box.appendChild(s);
-    return () => {
-      box.replaceChildren();
-      delete (window as TgWindow).onTelegramAuth;
-    };
-    // call не меняет поведение между рендерами, а перезапуск скрипта сбросил бы виджет
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bot, pending, merge, botFlow]);
-
   // Вход через бота: пока человек подтверждает в Telegram, раз в две секунды спрашиваем сервер.
   useEffect(() => {
     if (!botFlow || pending || merge) return;
-    const poll = setInterval(() => void call({ t: "bot", token: botFlow.token }, {}, true), 2000);
+    const poll = setInterval(() => void call({ token: botFlow.token }, {}, true), 2000);
     const stop = setTimeout(() => reset("Время запроса вышло. Начните заново."), botFlow.ttl * 1000);
     return () => { clearInterval(poll); clearTimeout(stop); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,15 +139,10 @@ export function TelegramAuth({ bot, next = "/", hint, title, mode = "login" }: {
           </div>
         </div>
       ) : (
-        <>
-          <div key="widget" className="flex min-h-[40px] justify-center" ref={holder} aria-label={mode === "link" ? "Привязать Telegram" : "Войти через Telegram"} />
-          <p className="text-center text-xs text-muted">
-            Не приходит подтверждение?{" "}
-            <button type="button" onClick={() => void startBot()} disabled={busy} className="text-accent hover:underline disabled:opacity-60">
-              {mode === "link" ? "Привязать через бота" : "Войти через бота"}
-            </button>
-          </p>
-        </>
+        <button key="start" type="button" onClick={() => void startBot()} disabled={busy} className="btn btn-primary w-full">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.93c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" /></svg>
+          {busy ? "Готовим ссылку…" : mode === "link" ? "Привязать Telegram" : "Войти через Telegram"}
+        </button>
       )}
       {err && <p className="text-center text-sm text-bad">{err}</p>}
     </div>

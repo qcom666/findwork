@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash, createHmac } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,86 +11,16 @@ import { __resetAppDbForTests } from "../src/lib/db";
 import { LEGAL_VERSION } from "../src/lib/legal";
 import { verifyPassword } from "../src/lib/password";
 import { requestPasswordReset } from "../src/lib/reset";
-import { isTgEmail, telegramBotUsername, telegramConfigured, tgEmail, verifyTelegramLogin } from "../src/lib/telegram";
+import { isTgEmail, telegramBotUsername, telegramConfigured, tgEmail } from "../src/lib/telegram";
 import { createUser, loginOrCreateTelegramUser } from "../src/lib/users";
 
 const TOKEN = "123456:TEST-token-not-a-real-bot";
-const NOW = 1_800_000_000;
-
-/** Данные виджета, подписанные так же, как это делает Telegram. */
-function widget(fields: Record<string, string | number>, token = TOKEN): Record<string, string | number> {
-  const check = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join("\n");
-  const hash = createHmac("sha256", createHash("sha256").update(token).digest()).update(check).digest("hex");
-  return { ...fields, hash };
-}
-const base = { id: 777000111, first_name: "Анна", last_name: "Петрова", username: "anna_p", photo_url: "https://t.me/i/userpic/1.jpg", auth_date: NOW - 30 };
 
 type Db = Awaited<ReturnType<typeof __resetAppDbForTests>>;
 let db: Db;
 beforeEach(async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "fw-tg-"));
   db = await __resetAppDbForTests("file:" + path.join(dir, "app.db"));
-});
-
-describe("проверка подписи Telegram", () => {
-  const verify = (d: unknown, nowSec = NOW) => verifyTelegramLogin(d, { token: TOKEN, nowSec });
-
-  it("принимает правильно подписанные данные", () => {
-    const r = verify(widget(base));
-    assert.ok(r.ok);
-    assert.deepEqual(r.user, { id: 777000111, name: "Анна Петрова", username: "anna_p" });
-  });
-
-  it("работает без фамилии и username", () => {
-    const r = verify(widget({ id: 5, first_name: "Иван", auth_date: NOW }));
-    assert.ok(r.ok);
-    assert.deepEqual(r.user, { id: 5, name: "Иван", username: null });
-  });
-
-  it("подписывает все присланные поля, в том числе новые", () => {
-    assert.ok(verify(widget({ ...base, some_new_field: "x" })).ok);
-  });
-
-  it("подмена любого поля ломает подпись", () => {
-    for (const [k, v] of [["id", 1], ["first_name", "Вася"], ["username", "root"], ["auth_date", NOW - 10]] as const) {
-      const r = verify({ ...widget(base), [k]: v });
-      assert.deepEqual(r, { ok: false, reason: "signature" }, `поле ${k}`);
-    }
-  });
-
-  it("чужой токен бота не проходит", () => {
-    assert.deepEqual(verify(widget(base, "999:other-token")), { ok: false, reason: "signature" });
-  });
-
-  it("лишнее поле без подписи не проходит", () => {
-    assert.deepEqual(verify({ ...widget(base), admin: "1" }), { ok: false, reason: "signature" });
-  });
-
-  it("старые данные отвергаются, свежие и чуть из будущего принимаются", () => {
-    assert.deepEqual(verify(widget({ ...base, auth_date: NOW - 601 })), { ok: false, reason: "expired" });
-    assert.ok(verify(widget({ ...base, auth_date: NOW - 590 })).ok);
-    assert.ok(verify(widget({ ...base, auth_date: NOW + 200 })).ok, "часы могут расходиться");
-    assert.deepEqual(verify(widget({ ...base, auth_date: NOW + 4000 })), { ok: false, reason: "expired" });
-  });
-
-  it("мусор вместо данных отвергается без ошибок", () => {
-    for (const bad of [null, undefined, "x", 5, [], {}, { id: 1 }, { ...widget(base), hash: "zz" }, { ...widget(base), id: { a: 1 } }]) {
-      const r = verify(bad);
-      assert.equal(r.ok, false);
-    }
-    assert.equal(verifyTelegramLogin(widget(base), { token: "", nowSec: NOW }).ok, false, "без токена бота входить нельзя");
-  });
-
-  it("нечисловой или отрицательный id отвергается даже при верной подписи", () => {
-    assert.equal(verify(widget({ ...base, id: "abc" })).ok, false);
-    assert.equal(verify(widget({ ...base, id: -5 })).ok, false);
-  });
-
-  it("username с лишними символами не сохраняется", () => {
-    const r = verify(widget({ ...base, username: "<script>" }));
-    assert.ok(r.ok);
-    assert.equal(r.user.username, null);
-  });
 });
 
 describe("настройка бота", () => {

@@ -38,7 +38,7 @@ export default async function AdminTelegram() {
       <AdminNav />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Telegram</h1>
-        <p className="text-sm text-muted">Бот для входа и регистрации. Кнопка в окне Telegram и вход через бота (ссылка и «Start») работают независимо друг от друга.</p>
+        <p className="text-sm text-muted">Бот для входа, регистрации и привязки Telegram: человек нажимает Start и «Да, это я» в чате с ботом. Вебхук сайт подключает сам при первом входе; кнопка ниже нужна, чтобы переподключить его вручную.</p>
       </div>
 
       <ul className="card divide-y divide-line text-sm">

@@ -129,7 +129,7 @@ export async function unlinkTelegram(userId: number): Promise<{ ok: true } | { o
   return { ok: true };
 }
 
-/** Что сказать человеку, когда привязка не удалась. Общий текст для виджета и для бота. */
+/** Что сказать человеку, когда привязка не удалась. Текст для входа и привязки через бота. */
 export function linkMessage(reason: Exclude<LinkResult, { ok: true }>["reason"]): string {
   switch (reason) {
     case "already": return "Этот Telegram уже привязан к вашему аккаунту";

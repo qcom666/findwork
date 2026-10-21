@@ -3,8 +3,8 @@ import { cache } from "react";
 import { appDb } from "./db";
 import { hashPassword, newToken, sha256, verifyPassword } from "./password";
 import { syncSubscriptions } from "./subscriptions";
-import { isTgEmail, type TgUser } from "./telegram";
-import { createUser, loginOrCreateTelegramUser, type TelegramLogin } from "./users";
+import { isTgEmail } from "./telegram";
+import { createUser } from "./users";
 
 const COOKIE = "fw_session";
 const SESSION_DAYS = 30;
@@ -52,17 +52,6 @@ export async function signUp(email: string, password: string, consentVersion?: s
   if (!r.ok) return r;
   await startSession(r.userId);
   return { ok: true };
-}
-
-/** Вход или регистрация через Telegram. Данные виджета к этому моменту уже проверены (verifyTelegramLogin). */
-export async function signInWithTelegram(
-  tg: TgUser,
-  opts: { consentVersion?: string | null; canCreate?: () => Promise<boolean> } = {},
-): Promise<TelegramLogin> {
-  const ref = (await cookies()).get("fw_ref")?.value ?? null;
-  const r = await loginOrCreateTelegramUser(tg, { refCode: ref, ...opts });
-  if (r.ok) await startSession(r.userId);
-  return r;
 }
 
 // Хэш для несуществующего пользователя: чтобы время ответа не выдавало, есть ли такой e-mail.
