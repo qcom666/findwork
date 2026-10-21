@@ -18,6 +18,8 @@ export function userLabel(email: string, tgUsername: string | null, displayName:
   return tgUsername ? `@${tgUsername}` : displayName || "Telegram";
 }
 
+export const BANNED_MESSAGE = "Аккаунт заблокирован. Если это ошибка, напишите в поддержку.";
+
 export const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 export function validateCredentials(email: string, password: string): string | null {
@@ -57,14 +59,18 @@ export async function signUp(email: string, password: string, consentVersion?: s
 // Хэш для несуществующего пользователя: чтобы время ответа не выдавало, есть ли такой e-mail.
 const DUMMY = hashPassword("dummy-password-for-timing");
 
-export async function logIn(email: string, password: string): Promise<boolean> {
+export type LogInResult = { ok: true } | { ok: false; banned?: boolean };
+
+/** banned сообщаем только после верного пароля: чужому перебору наличие и блокировка аккаунтов не раскрываются. */
+export async function logIn(email: string, password: string): Promise<LogInResult> {
   const db = await appDb();
-  const r = await db.execute({ sql: "SELECT id, pass_hash FROM users WHERE email = ?", args: [email.trim().toLowerCase()] });
+  const r = await db.execute({ sql: "SELECT id, pass_hash, banned_at FROM users WHERE email = ?", args: [email.trim().toLowerCase()] });
   const row = r.rows[0];
   const ok = await verifyPassword(password, row ? String(row.pass_hash) : await DUMMY);
-  if (!row || !ok) return false;
+  if (!row || !ok) return { ok: false };
+  if (row.banned_at != null) return { ok: false, banned: true };
   await startSession(Number(row.id));
-  return true;
+  return { ok: true };
 }
 
 export async function logOut(): Promise<void> {
@@ -85,7 +91,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     const db = await appDb();
     const r = await db.execute({
       sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_id, u.tg_username, u.display_name, u.pass_hash FROM sessions s JOIN users u ON u.id = s.user_id
-            WHERE s.token_hash = ? AND s.expires_at > ?`,
+            WHERE s.token_hash = ? AND s.expires_at > ? AND u.banned_at IS NULL`,
       args: [sha256(token), now()],
     });
     const row = r.rows[0];

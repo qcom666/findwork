@@ -92,9 +92,10 @@ export async function loginOrCreateTelegramUser(
   opts: { refCode?: string | null; consentVersion?: string | null; canCreate?: () => Promise<boolean> } = {},
 ): Promise<TelegramLogin> {
   const db = await appDb();
-  const find = async () => (await db.execute({ sql: "SELECT id FROM users WHERE tg_id = ?", args: [tg.id] })).rows[0];
+  const find = async () => (await db.execute({ sql: "SELECT id, banned_at FROM users WHERE tg_id = ?", args: [tg.id] })).rows[0];
 
   const found = await find();
+  if (found?.banned_at != null) return { ok: false, error: "Аккаунт заблокирован. Если это ошибка, напишите в поддержку." };
   if (found) return { ok: true, userId: await touchTelegramUser(Number(found.id), tg), created: false };
 
   if (!opts.consentVersion) return { ok: false, needConsent: true };

@@ -1,4 +1,4 @@
-import { logIn } from "@/lib/auth";
+import { BANNED_MESSAGE, logIn } from "@/lib/auth";
 import { json, readJson } from "@/lib/http";
 import { allow, clientIp } from "@/lib/ratelimit";
 
@@ -15,5 +15,7 @@ export async function POST(req: Request) {
   const okMail = await allow(`login-mail:${email}`, 10, 900);
   if (!okIp || !okMail) return json({ error: "Слишком много попыток входа. Подождите 15 минут." }, 429);
 
-  return (await logIn(email, password)) ? json({ ok: true }) : json({ error: "Неверный e-mail или пароль" }, 401);
+  const r = await logIn(email, password);
+  if (r.ok) return json({ ok: true });
+  return r.banned ? json({ error: BANNED_MESSAGE }, 403) : json({ error: "Неверный e-mail или пароль" }, 401);
 }

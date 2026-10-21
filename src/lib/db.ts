@@ -210,8 +210,8 @@ async function migrate(client: Client): Promise<void> {
     }
   };
 
-  // sub_next_at: когда подписке пора начислить следующий месяц (NULL: начислять нечего). consent_*: когда и какую редакцию документов принял пользователь. tg_*: вход через Telegram (почты у такого аккаунта нет, вместо неё служебный адрес).
-  await addColumns("users", [["ref_code", "TEXT"], ["referred_by", "INTEGER"], ["sub_next_at", "INTEGER"], ["consent_at", "INTEGER"], ["consent_ver", "TEXT"], ["tg_id", "INTEGER"], ["tg_username", "TEXT"], ["display_name", "TEXT"]]);
+  // sub_next_at: когда подписке пора начислить следующий месяц (NULL: начислять нечего). consent_*: когда и какую редакцию документов принял пользователь. tg_*: вход через Telegram (почты у такого аккаунта нет, вместо неё служебный адрес). banned_at, ban_reason: блокировка владельцем (входить и пользоваться нельзя).
+  await addColumns("users", [["ref_code", "TEXT"], ["referred_by", "INTEGER"], ["sub_next_at", "INTEGER"], ["consent_at", "INTEGER"], ["consent_ver", "TEXT"], ["tg_id", "INTEGER"], ["tg_username", "TEXT"], ["display_name", "TEXT"], ["banned_at", "INTEGER"], ["ban_reason", "TEXT"]]);
   await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
   // Вход через Telegram: tg_id один на аккаунт (у аккаунтов с почтой он пустой, пустые значения в уникальном индексе не конфликтуют).
   await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_tg ON users(tg_id)");

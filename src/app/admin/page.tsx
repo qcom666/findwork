@@ -37,8 +37,8 @@ export default async function Admin() {
         <Tile label="Платят" value={`${conv}%`} sub={`${m.users.payers} из ${m.users.total}`} />
         <Tile label="Открыто лидов" value={String(m.usage.unlocks)} sub={`за 7 дней: ${m.usage.unlocks7}`} />
         <Tile label="Активных за неделю" value={String(m.users.active7)} sub="открывали лиды" />
-        <Tile label="Продано кредитов" value={String(m.money.creditsSold)} />
-        <Tile label="Кредитов на балансах" value={String(m.usage.creditsLeft)} sub="не потрачено" />
+        <Tile label="Продано кредитов" value={String(m.money.creditsSold)} sub="без ваших аккаунтов" />
+        <Tile label="Кредитов на балансах" value={String(m.usage.creditsLeft)} sub="не потрачено, без ваших аккаунтов" />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">

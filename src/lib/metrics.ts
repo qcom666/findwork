@@ -1,3 +1,4 @@
+import type { Client } from "@libsql/client";
 import { appDb, leadsDb } from "./db";
 
 const DAY = 86400;
@@ -20,6 +21,10 @@ export async function getMetrics(): Promise<Metrics> {
   const t = now();
   const one = async (sql: string, args: (string | number)[] = []) => (await db.execute({ sql, args })).rows[0];
 
+  // Учёт кредитов ведём без аккаунтов владельца: его подарочные и тестовые кредиты не должны попадать в «продано» и «на балансах».
+  const ownerIds = await adminUserIds(db);
+  const notOwner = (col: string) => (ownerIds.length ? ` AND ${col} NOT IN (${ownerIds.join(",")})` : "");
+
   const [u, d7, d30, active7, payers, rev, rev30, pays, pend, fail, sold, un, un7, left] = await Promise.all([
     one("SELECT count(*) AS n FROM users"),
     one("SELECT count(*) AS n FROM users WHERE created_at > ?", [t - 7 * DAY]),
@@ -31,10 +36,10 @@ export async function getMetrics(): Promise<Metrics> {
     one("SELECT count(*) AS n FROM payments WHERE status = 'succeeded' AND provider = 'yookassa'"),
     one("SELECT count(*) AS n FROM payments WHERE status = 'pending'"),
     one("SELECT count(*) AS n FROM payments WHERE status IN ('failed', 'canceled')"),
-    one("SELECT coalesce(sum(credits), 0) AS n FROM payments WHERE status = 'succeeded' AND provider = 'yookassa'"),
+    one(`SELECT coalesce(sum(credits), 0) AS n FROM payments WHERE status = 'succeeded' AND provider = 'yookassa'${notOwner("user_id")}`),
     one("SELECT count(*) AS n FROM unlocks"),
     one("SELECT count(*) AS n FROM unlocks WHERE created_at > ?", [t - 7 * DAY]),
-    one("SELECT coalesce(sum(balance), 0) AS n FROM users"),
+    one(`SELECT coalesce(sum(balance), 0) AS n FROM users WHERE 1 = 1${notOwner("id")}`),
   ]);
 
   const days = (
@@ -85,4 +90,12 @@ export function isAdminEmail(email: string | undefined | null): boolean {
   if (!email) return false;
   const list = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   return list.includes(email.toLowerCase());
+}
+
+/** Идентификаторы аккаунтов владельца по ADMIN_EMAILS. Только целые числа из базы, поэтому их безопасно вставлять в запрос. */
+async function adminUserIds(db: Client): Promise<number[]> {
+  const emails = (process.env.ADMIN_EMAILS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (!emails.length) return [];
+  const rs = await db.execute({ sql: `SELECT id FROM users WHERE lower(email) IN (${emails.map(() => "?").join(",")})`, args: emails });
+  return rs.rows.map((r) => Number(r.id)).filter((n) => Number.isInteger(n));
 }
