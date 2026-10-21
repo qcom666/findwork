@@ -6,7 +6,7 @@ import { ARTICLES, formatDate, getArticle, readingMinutes } from "@/content/arti
 
 type Props = { params: Promise<{ slug: string }> };
 
-// Статьи лежат в коде, поэтому страницы собираются заранее и отдаются мгновенно.
+// Статьи лежат в коде, а не в базе: страница не ходит за текстом в сеть.
 export function generateStaticParams() {
   return ARTICLES.map((a) => ({ slug: a.slug }));
 }
