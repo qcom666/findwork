@@ -14,7 +14,7 @@ import { getReferralInfo } from "@/lib/users";
 export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
-const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
 const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 
 export default async function Account() {

@@ -143,6 +143,15 @@ async function migrate(client: Client): Promise<void> {
     }
   }
   await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
+
+  const promoCols = (await client.execute("PRAGMA table_info(promo_codes)")).rows.map((r) => String(r.name));
+  if (!promoCols.includes("revoked")) {
+    try {
+      await client.execute("ALTER TABLE promo_codes ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
+    } catch (e) {
+      if (!/duplicate column/i.test((e as Error).message)) throw e;
+    }
+  }
 }
 
 export function appDb(): Promise<Client> {

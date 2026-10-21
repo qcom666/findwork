@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { MobileMenu, NavLinks, type NavItem } from "@/components/NavLinks";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/metrics";
 import { dbReady } from "@/lib/db";
 import { plural } from "@/lib/format";
 import { getMeta } from "@/lib/search";
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     { href: "/blog", label: "Блог" },
     { href: "/about", label: "О данных" },
     ...(user ? [{ href: "/my", label: "Мои лиды" }] : []),
+    ...(user && isAdminEmail(user.email) ? [{ href: "/admin", label: "Админка" }] : []),
   ];
 
   return (

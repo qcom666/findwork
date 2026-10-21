@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
-import { AdminPromoForm } from "@/components/AdminPromoForm";
-import { listPromos } from "@/lib/promo";
+import { AdminNav } from "@/components/AdminNav";
+import { getAdmin } from "@/lib/admin";
 import { getLabels } from "@/lib/search";
-import { getMetrics, isAdminEmail } from "@/lib/metrics";
+import { getMetrics } from "@/lib/metrics";
 
 export const metadata: Metadata = { title: "Метрики", robots: { index: false, follow: false } };
 
@@ -13,17 +12,17 @@ const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
 
 export default async function Admin() {
-  const user = await getCurrentUser();
   // Для всех остальных страницы не существует: ADMIN_EMAILS не задан или вы не в списке.
-  if (!user || !isAdminEmail(user.email)) notFound();
+  if (!(await getAdmin())) notFound();
 
-  const [m, labels, promos] = await Promise.all([getMetrics(), getLabels(), listPromos(30)]);
+  const [m, labels] = await Promise.all([getMetrics(), getLabels()]);
   const conv = m.users.total ? Math.round((m.users.payers / m.users.total) * 1000) / 10 : 0;
 
   return (
     <div className="space-y-8">
+      <AdminNav />
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Метрики</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Обзор</h1>
         <p className="text-sm text-muted">Только для владельца. Данные считаются при открытии страницы, тестовые платежи не входят в выручку.</p>
       </div>
 
@@ -58,22 +57,6 @@ export default async function Admin() {
           </ul>
         </section>
       </div>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Промокоды</h2>
-        <AdminPromoForm />
-        <ul className="card divide-y divide-line text-sm">
-          {promos.length === 0 && <li className="px-4 py-3 text-muted">Кодов пока нет.</li>}
-          {promos.map((p) => (
-            <li key={p.code} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-              <span><b className="font-mono">{p.code}</b> · {p.credits} кредитов{p.note ? ` · ${p.note}` : ""}</span>
-              <span className="text-muted">
-                использован {p.used}{p.maxUses ? ` из ${p.maxUses}` : ""}{p.expiresAt ? ` · до ${new Date(p.expiresAt * 1000).toLocaleDateString("ru-RU")}` : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">Последние платежи</h2>
