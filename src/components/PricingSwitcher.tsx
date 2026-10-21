@@ -18,7 +18,6 @@ const monthsLabel = (m: number) => (m === 12 ? "12 месяцев" : `${m} ${plu
 const INCLUDED = [
   "Телефон, e-mail, соцсети, ссылка на сайт",
   "WhatsApp и Telegram в один клик",
-  "Проверка сайта и питч от Claude",
   "Заметки, статусы и экспорт в CSV",
   "Кредиты не сгорают",
 ];
@@ -36,7 +35,7 @@ function Check() {
  * Тарифы и скидки берутся из plans.ts, пакеты передаёт страница. Покупка идёт через /api/billing/checkout.
  * Карточка тарифа кликабельна (выбранная выделяется), у каждой своя кнопка «Подключить»: с клавиатуры работает кнопка.
  */
-export function PricingSwitcher({ packages, enabled, initialTab = "subscription", packageDiscountPct = 0 }: { packages: Pkg[]; enabled: boolean; initialTab?: Tab; packageDiscountPct?: number }) {
+export function PricingSwitcher({ packages, enabled, initialTab = "subscription", packageDiscountPct = 0, pitchLabel = "Готовый питч под каждое заведение" }: { packages: Pkg[]; enabled: boolean; initialTab?: Tab; packageDiscountPct?: number; /** Как назвать питч: «от Claude» только если ключ подключён */ pitchLabel?: string }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [planId, setPlanId] = useState((PLANS.find((p) => p.popular) ?? PLANS[0]).id);
   const [months, setMonths] = useState(PERIODS[1]?.months ?? PERIODS[0].months);
@@ -137,6 +136,7 @@ export function PricingSwitcher({ packages, enabled, initialTab = "subscription"
                     <li className="flex gap-2"><Check /><span>Докупка кредитов <b>на {p.perks.packageDiscountPct}% дешевле</b></span></li>
                     {p.perks.referralMultiplier > 1 && <li className="flex gap-2"><Check /><span>Награда за приглашённых <b>×{p.perks.referralMultiplier}</b></span></li>}
                     <li className="flex gap-2"><Check /><span>До {group(p.perks.pitchesPerHour)} питчей в час</span></li>
+                    <li className="flex gap-2"><Check /><span>Проверка сайта и {pitchLabel.charAt(0).toLowerCase() + pitchLabel.slice(1)}</span></li>
                     {INCLUDED.map((t) => (
                       <li key={t} className="flex gap-2"><Check /><span>{t}</span></li>
                     ))}

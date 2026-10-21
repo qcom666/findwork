@@ -4,6 +4,7 @@ import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
 import { mockMode, PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
+import { pitchFeature } from "@/lib/ai";
 import { dbReady } from "@/lib/db";
 import { getEntitlements } from "@/lib/entitlements";
 import { plural } from "@/lib/format";
@@ -114,7 +115,7 @@ export default async function Pricing() {
             Чем дольше срок, тем ниже цена контакта. Количество контактов точное, без «примерно»: сколько указано, столько и получите.
           </p>
         </div>
-        <PricingSwitcher packages={PACKAGES} enabled={enabled} packageDiscountPct={ent?.packageDiscountPct ?? 0} />
+        <PricingSwitcher packages={PACKAGES} enabled={enabled} packageDiscountPct={ent?.packageDiscountPct ?? 0} pitchLabel={pitchFeature()} />
       </section>
 
       {user && (

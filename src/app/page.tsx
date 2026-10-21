@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PricingSwitcher } from "@/components/PricingSwitcher";
+import { aiPitches, pitchFeature } from "@/lib/ai";
 import { RoiCalculator } from "@/components/RoiCalculator";
 import { ARTICLES, readingMinutes } from "@/content/articles";
 import { ScoreRing } from "@/components/ScoreRing";
@@ -16,8 +17,13 @@ const STEPS = [
   { n: "1", title: "Выберите, что вы делаете", text: "Сайты, QR-меню, онлайн-запись, соцсети, логотипы. Каталог сразу сужается до подходящих заведений." },
   { n: "2", title: "Оцените лид бесплатно", text: "Оценка от 0 до 100, причины и список услуг, которые стоит предложить, видны без оплаты." },
   { n: "3", title: "Откройте контакты", text: `За ${UNLOCK_COST} кредит: телефон, e-mail, соцсети, ссылка на сайт и проверка сайта на слабые места.` },
-  { n: "4", title: "Отправьте питч", text: "Claude пишет первое сообщение под заведение и ваш профиль. Вы правите и отправляете сами." },
 ];
+
+/** Четвёртый шаг зависит от того, подключена ли языковая модель: без ключа питч строится по шаблону, и про Claude мы не пишем. */
+const stepFour = (ai: boolean) => ({
+  n: "4", title: "Отправьте питч",
+  text: ai ? "Claude пишет первое сообщение под заведение и ваш профиль. Вы правите и отправляете сами." : "Сервис готовит первое сообщение под заведение и вашу услугу: WhatsApp, Telegram или e-mail в один клик. Вы правите и отправляете сами.",
+});
 
 const FEATURES = [
   { title: "Честная оценка", text: "Видно, из чего сложилась оценка: нет сайта, есть телефон, не сеть, ниша с высоким чеком. Никаких загадочных баллов." },
@@ -133,7 +139,7 @@ export default async function Home() {
       <section className="space-y-8">
         <SectionTitle title="Как это работает" sub="От выбора ниши до отправленного сообщения за несколько минут." />
         <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s) => (
+          {[...STEPS, stepFour(aiPitches())].map((s) => (
             <li key={s.n} className="card p-5">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-sm font-bold text-accent">{s.n}</span>
               <h3 className="mt-4 font-semibold">{s.title}</h3>
@@ -227,7 +233,7 @@ export default async function Home() {
 
       <section className="space-y-8">
         <SectionTitle title="Тарифы" sub={`Подписка или разовые кредиты. ${UNLOCK_COST} кредит — одно заведение со всеми инструментами.`} />
-        <PricingSwitcher packages={PACKAGES} enabled={paymentsEnabled()} />
+        <PricingSwitcher packages={PACKAGES} enabled={paymentsEnabled()} pitchLabel={pitchFeature()} />
         <p className="text-sm text-muted">
           Кредиты не сгорают. {SIGNUP_BONUS > 0 && `При регистрации дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}. `}
           <Link href="/pricing" className="text-accent hover:underline">Подробнее о тарифах</Link>

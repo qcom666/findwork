@@ -106,7 +106,7 @@ export function BatchPitch({ eligible, services }: { eligible: string[]; service
         {busy && <progress className="h-2 w-40 accent-[var(--accent)]" value={done + failed} max={total} />}
         {finished && (
           <span className="text-sm text-good">
-            Готово: {done} {fromClaude > 0 ? `(из них ${fromClaude} от Claude)` : "(шаблоны без ИИ)"}{failed ? `, не получилось: ${failed}` : ""}
+            Готово: {done} {fromClaude > 0 ? `(из них ${fromClaude} от Claude)` : "(шаблоны)"}{failed ? `, не получилось: ${failed}` : ""}
           </span>
         )}
       </div>

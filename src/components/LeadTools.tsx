@@ -144,7 +144,7 @@ export function LeadTools({ leadId, hasWebsite, services, phones, email, saved, 
             <Block title="Если нет ответа через 3–4 дня" text={pitch.followup} />
             <p className="rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent">{pitch.angle}</p>
             <p className="text-xs text-muted">
-              {source === "claude" ? "Текст написан Claude." : "Шаблон без ИИ."} {note}
+              {source === "claude" ? "Текст написан Claude." : "Готовый шаблон."} {note}
             </p>
             <p className="text-xs text-muted">
               Перед отправкой проверьте факты. Рекламные сообщения по телефону и e-mail можно слать только с согласия
