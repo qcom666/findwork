@@ -1,8 +1,9 @@
 import { getCurrentUser } from "@/lib/auth";
+import { appBaseUrl } from "@/lib/billing";
 import { json, readJson } from "@/lib/http";
 import { allow, clientIp } from "@/lib/ratelimit";
 import { createLoginRequest } from "@/lib/tg-login";
-import { botConfigured } from "@/lib/telegram-bot";
+import { botConfigured, ensureWebhook } from "@/lib/telegram-bot";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,14 @@ export async function POST(req: Request) {
   const mode = b.mode === "link" ? "link" : "login";
   const user = mode === "link" ? await getCurrentUser() : null;
   if (mode === "link" && !user) return json({ error: "Войдите в аккаунт" }, 401);
+
+  // Бот должен слать сообщения на этот сайт. Если Telegram не принимает токен, говорим об этом сразу, а не после минут ожидания.
+  try {
+    await ensureWebhook(appBaseUrl(req));
+  } catch (e) {
+    console.error("[telegram] бот входа недоступен", e);
+    return json({ error: "Вход через бота сейчас недоступен. Войдите по e-mail или попробуйте позже." }, 503);
+  }
 
   const r = await createLoginRequest({ mode, userId: user?.id, ip, ua: req.headers.get("user-agent") ?? "" });
   return json({ token: r.token, url: r.url, ttl: r.ttl });

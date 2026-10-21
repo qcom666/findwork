@@ -8,7 +8,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 
 import { linkTelegram } from "../src/lib/account-link";
 import { __resetAppDbForTests } from "../src/lib/db";
-import { botLink, checkWebhookSecret, tgApi, webhookSecret } from "../src/lib/telegram-bot";
+import { __resetWebhookCheck, botLink, checkWebhookSecret, ensureWebhook, tgApi, webhookSecret } from "../src/lib/telegram-bot";
 import { createLoginRequest, handleBotUpdate, pollLoginRequest, uaLabel } from "../src/lib/tg-login";
 import { createUser, loginOrCreateTelegramUser } from "../src/lib/users";
 
@@ -73,6 +73,25 @@ describe("Bot API и вебхук", () => {
     failApi = true;
     await assert.rejects(tgApi("getMe"), /boom/);
     assert.equal(botLink("login_abc"), "https://t.me/fw_test_bot?start=login_abc");
+  });
+
+  it("вебхук подключается сам один раз, повторные проверки кэшируются, при отказе Telegram бросает ошибку", async () => {
+    __resetWebhookCheck();
+    await ensureWebhook("https://findwork.example/");
+    assert.deepEqual(calls.map((c) => c.method), ["getWebhookInfo", "setWebhook"]);
+    const hook = calls[1].body;
+    assert.equal(hook.url, "https://findwork.example/api/telegram/webhook");
+    assert.equal(hook.secret_token, webhookSecret());
+    assert.deepEqual(hook.allowed_updates, ["message", "callback_query"]);
+
+    calls = [];
+    await ensureWebhook("https://findwork.example");
+    assert.equal(calls.length, 0, "в пределах пяти минут Telegram не опрашиваем");
+
+    __resetWebhookCheck();
+    failApi = true;
+    await assert.rejects(ensureWebhook("https://findwork.example"), /boom/);
+    __resetWebhookCheck();
   });
 
   it("браузер и система в вопросе боту", () => {

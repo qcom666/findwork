@@ -40,3 +40,24 @@ export function checkWebhookSecret(header: string | null): boolean {
 }
 
 export const botLink = (payload: string) => `https://t.me/${telegramBotUsername()}?start=${payload}`;
+
+let checked = { at: 0, url: "" };
+
+/** Только для тестов: забыть, что вебхук уже проверяли. */
+export function __resetWebhookCheck(): void {
+  checked = { at: 0, url: "" };
+}
+
+/**
+ * Следит, чтобы Telegram присылал сообщения бота на этот сайт: если вебхук не тот, подключает его сам. Так вход через бота
+ * не зависит от того, нажал ли владелец кнопку в админке. Проверка кэшируется на 5 минут. Бросает ошибку, если Telegram не принял токен.
+ */
+export async function ensureWebhook(baseUrl: string): Promise<void> {
+  const url = `${baseUrl.replace(/\/$/, "")}/api/telegram/webhook`;
+  if (checked.url === url && Date.now() - checked.at < 5 * 60_000) return;
+  const info = await tgApi<{ url?: string }>("getWebhookInfo");
+  if (info?.url !== url) {
+    await tgApi("setWebhook", { url, secret_token: webhookSecret(), allowed_updates: ["message", "callback_query"] });
+  }
+  checked = { at: Date.now(), url };
+}
