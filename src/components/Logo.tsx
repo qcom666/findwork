@@ -18,7 +18,7 @@ export function Logo() {
   return (
     <span className="flex items-center gap-2">
       <LogoMark />
-      <span className="text-lg font-bold tracking-tight">Лидомап</span>
+      <span className="text-lg font-bold tracking-tight">Lidomap</span>
     </span>
   );
 }

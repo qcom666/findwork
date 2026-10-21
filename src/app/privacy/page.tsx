@@ -1,7 +1,7 @@
 import { LegalDoc } from "@/components/LegalDoc";
 import { privacySections } from "@/lib/legal";
 
-export const metadata = { title: "Политика конфиденциальности", description: "Как Лидомап обрабатывает и защищает персональные данные пользователей." };
+export const metadata = { title: "Политика конфиденциальности", description: "Как Lidomap обрабатывает и защищает персональные данные пользователей." };
 
 export const dynamic = "force-dynamic";
 

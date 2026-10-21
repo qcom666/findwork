@@ -47,7 +47,7 @@ export default async function CityNichePage({ params }: Props) {
   return (
     <div className="space-y-8">
       <nav className="text-sm text-muted" aria-label="Навигация">
-        <Link href="/" className="hover:text-ink">Лидомап</Link> › <Link href="/leads" className="hover:text-ink">Каталог</Link> ›{" "}
+        <Link href="/" className="hover:text-ink">Lidomap</Link> › <Link href="/leads" className="hover:text-ink">Каталог</Link> ›{" "}
         <Link href={`/city/${d.city.slug}`} className="hover:text-ink">{d.city.name}</Link> › {d.label}
       </nav>
 

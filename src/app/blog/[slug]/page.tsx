@@ -39,14 +39,14 @@ export default async function ArticlePage({ params }: Props) {
       dateModified: a.date,
       inLanguage: "ru",
       mainEntityOfPage: `${base}/blog/${a.slug}`,
-      author: { "@type": "Organization", name: "Лидомап" },
-      publisher: { "@type": "Organization", name: "Лидомап" },
+      author: { "@type": "Organization", name: "Lidomap" },
+      publisher: { "@type": "Organization", name: "Lidomap" },
     },
     {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
-        { "@type": "ListItem", position: 1, name: "Лидомап", item: base },
+        { "@type": "ListItem", position: 1, name: "Lidomap", item: base },
         { "@type": "ListItem", position: 2, name: "Блог", item: `${base}/blog` },
         { "@type": "ListItem", position: 3, name: a.title },
       ],
@@ -57,7 +57,7 @@ export default async function ArticlePage({ params }: Props) {
     <article className="mx-auto max-w-2xl">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <nav className="text-sm text-muted" aria-label="Навигация">
-        <Link href="/" className="hover:text-ink">Лидомап</Link> › <Link href="/blog" className="hover:text-ink">Блог</Link>
+        <Link href="/" className="hover:text-ink">Lidomap</Link> › <Link href="/blog" className="hover:text-ink">Блог</Link>
       </nav>
 
       <header className="mt-4">

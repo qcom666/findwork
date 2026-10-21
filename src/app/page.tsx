@@ -79,15 +79,15 @@ export default async function Home() {
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-good" /> Для фрилансеров и небольших студий
             </p>
-            <h1 className="text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
-              Клиенты среди заведений, у которых ещё нет сайта
+            <h1 className="text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+              Клиенты, которым нужны <span className="text-accent">ваши услуги</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">
-              {stats ? `${stats.places.toLocaleString("ru-RU")} заведений России на открытых данных. ` : ""}
-              Лидомап находит тех, кому нужен сайт, QR-меню, онлайн-запись или соцсети, оценивает лид и пишет первое сообщение.
+              {stats ? `${stats.places.toLocaleString("ru-RU")} заведений России в базе. ` : ""}
+              Lidomap находит кафе, салоны, клиники и магазины, которым нужен сайт, QR-меню, онлайн-запись или соцсети, оценивает каждое, проверяет сайт и готовит первое сообщение. Вам остаётся выбрать и написать.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/leads" className="btn btn-primary">Смотреть лиды</Link>
+              <Link href="/leads" className="btn btn-primary">Найти клиентов</Link>
               {!user && (
                 <Link href="/signup" className="btn btn-ghost">
                   {SIGNUP_BONUS > 0 ? `Получить ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}` : "Регистрация"}
@@ -150,7 +150,7 @@ export default async function Home() {
       </section>
 
       <section className="space-y-8">
-        <SectionTitle title="Почему Лидомап" sub="Мы не парсим карты на лету: каталог собран заранее из открытых данных. Это быстрее, спокойнее и дешевле для вас." />
+        <SectionTitle title="Почему Lidomap" sub="Мы не парсим карты на лету: каталог собран заранее из открытых данных. Это быстрее, спокойнее и дешевле для вас." />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {WHY.map((w) => (
             <div key={w.title} className="card p-5">
@@ -162,14 +162,14 @@ export default async function Home() {
         <div className="card overflow-hidden text-sm">
           <div className="hidden grid-cols-[9rem_1fr_1fr] gap-4 border-b border-line bg-surface-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted sm:grid">
             <span />
-            <span className="text-accent">Лидомап</span>
+            <span className="text-accent">Lidomap</span>
             <span>Сервисы-парсеры карт, как правило</span>
           </div>
           <dl className="divide-y divide-line">
             {COMPARE.map((c) => (
               <div key={c.row} className="grid gap-1 px-5 py-3.5 sm:grid-cols-[9rem_1fr_1fr] sm:gap-4">
                 <dt className="font-semibold">{c.row}</dt>
-                <dd><span className="text-xs font-semibold text-accent sm:hidden">Лидомап: </span>{c.us}</dd>
+                <dd><span className="text-xs font-semibold text-accent sm:hidden">Lidomap: </span>{c.us}</dd>
                 <dd className="text-muted"><span className="text-xs font-semibold sm:hidden">Парсеры: </span>{c.them}</dd>
               </div>
             ))}

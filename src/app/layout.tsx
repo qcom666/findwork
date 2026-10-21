@@ -14,13 +14,13 @@ import { getMeta } from "@/lib/search";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"], variable: "--font-inter", display: "swap" });
 
-const DESCRIPTION = "Кафе, салоны, клиники и магазины России без сайта или со слабым сайтом. Оценка лида, проверка сайта и готовый питч для фрилансеров.";
+const DESCRIPTION = "Находите заведения России, которым нужны ваши услуги: сайт, QR-меню, онлайн-запись, SMM, вывеска. Оценка лида, проверка сайта и готовый питч.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl()),
-  title: { default: "Лидомап — клиенты для фрилансеров среди заведений России", template: "%s — Лидомап" },
+  title: { default: "Lidomap — клиенты, которым нужны ваши услуги", template: "%s — Lidomap" },
   description: DESCRIPTION,
-  openGraph: { title: "Лидомап", description: DESCRIPTION, siteName: "Лидомап", locale: "ru_RU", type: "website" },
+  openGraph: { title: "Lidomap", description: DESCRIPTION, siteName: "Lidomap", locale: "ru_RU", type: "website" },
 };
 
 export const viewport: Viewport = {
@@ -59,7 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
-            <Link href="/" aria-label="Лидомап, на главную">
+            <Link href="/" aria-label="Lidomap, на главную">
               <Logo />
             </Link>
             <nav className="hidden items-center gap-1 text-sm font-medium md:flex">

@@ -1,6 +1,5 @@
 /** Название сервиса и адрес сайта в одном месте. Менять название: только здесь и в текстах, адрес: переменная APP_URL (после покупки домена). */
-export const BRAND = "Лидомап";
-export const BRAND_LATIN = "Lidomap";
+export const BRAND = "Lidomap";
 
 /** Адрес по умолчанию, пока не задан APP_URL. Технический, пользователям не показывается, если APP_URL задан. */
 const FALLBACK_URL = "https://findwork-rouge.vercel.app";

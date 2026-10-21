@@ -39,7 +39,7 @@ vercel env add SELLER_NAME production           # ФИО самозанятог�
 vercel env add SELLER_INN production
 vercel env add SUPPORT_EMAIL production
 vercel env add ANTHROPIC_API_KEY production     # для питчей от Claude, можно позже
-vercel env add ADMIN_EMAILS production          # ваш e-mail из аккаунта «Лидомап»: откроет страницу /admin с метриками
+vercel env add ADMIN_EMAILS production          # ваш e-mail из аккаунта Lidomap: откроет страницу /admin с метриками
 ```
 
 ## 3. ЮKassa
