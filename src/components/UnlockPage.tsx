@@ -9,6 +9,7 @@ export function UnlockPage({ ids, balance }: { ids: string[]; balance: number })
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
   const need = ids.length;
   const short = balance < need;
 
@@ -22,6 +23,7 @@ export function UnlockPage({ ids, balance }: { ids: string[]; balance: number })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Не удалось открыть");
+      setNote(data.skipped ? `Пропущено заведений в чужом эксклюзиве: ${data.skipped}` : "");
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
@@ -35,6 +37,7 @@ export function UnlockPage({ ids, balance }: { ids: string[]; balance: number })
       <span>
         <b>{need}</b> на странице ещё не открыто. {short ? <span className="text-warn">Не хватает кредитов: нужно {need}, на балансе {balance}.</span> : <span className="text-muted">Баланс: {balance}.</span>}
         {err && <span className="ml-2 text-bad">{err}</span>}
+        {note && <span className="ml-2 text-warn">{note}</span>}
       </span>
       {short ? (
         <Link href="/pricing" className="btn btn-primary btn-sm">Пополнить</Link>

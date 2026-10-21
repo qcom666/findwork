@@ -1,8 +1,9 @@
 import { cached } from "./cache";
 import { matchNiches } from "./niche-search";
 import { getAllCities } from "./seo";
+import { claimedByOthers } from "./claims";
 import { unlockedAmong } from "./credits";
-import { leadsDb } from "./db";
+import { appDb, leadsDb } from "./db";
 import { maskEmail, maskPhone, socialNames } from "./mask";
 
 export type SiteKind = "none" | "social" | "builder" | "real";
@@ -24,6 +25,8 @@ export type Lead = {
   services: string[];
   /** Контакты открыты для текущего пользователя. Пока нет, поля ниже пустые, а наружу идут только превью. */
   unlocked: boolean;
+  /** Другой пользователь держит заведение в эксклюзиве до этого момента (unix-секунды): открыть его нельзя. Для открытых и свободных null. */
+  claimedUntil: number | null;
   has: { phone: boolean; email: boolean; social: boolean; website: boolean };
   preview: { phone: string | null; email: string | null; socials: string[] };
   phone: string | null;
@@ -51,7 +54,7 @@ function parseList(s: string | null): string[] {
 }
 
 /** Единственное место, где контакты выпускаются наружу: без unlocked=true они вырезаются здесь. */
-function toLead(r: Row, unlocked: boolean): Lead {
+function toLead(r: Row, unlocked: boolean, claimedUntil: number | null = null): Lead {
   const phones = parseList(r.phones);
   const socials = parseList(r.socials);
   return {
@@ -59,6 +62,7 @@ function toLead(r: Row, unlocked: boolean): Lead {
     lat: r.lat, lon: r.lon, siteKind: r.site_kind, isChain: r.is_chain === 1, confidence: r.confidence,
     sources: r.sources ? r.sources.split(",") : [], score: r.score, services: r.services ? r.services.split(",") : [],
     unlocked,
+    claimedUntil: unlocked ? null : claimedUntil,
     has: { phone: !!r.phone, email: !!r.email, social: socials.length > 0, website: !!r.website },
     preview: { phone: maskPhone(r.phone), email: maskEmail(r.email), socials: socialNames(socials) },
     phone: unlocked ? r.phone : null,
@@ -206,6 +210,15 @@ async function totalFor(p: Params, sql: string, args: (string | number)[]): Prom
   });
 }
 
+/** Заведения в чужом эксклюзиве. Ошибка базы аккаунтов не должна ронять каталог: тогда считаем, что закрытых нет. */
+async function closedLeads(userId: number | null | undefined, ids: string[]): Promise<Map<string, number>> {
+  try {
+    return await claimedByOthers(await appDb(), userId ?? undefined, ids);
+  } catch {
+    return new Map();
+  }
+}
+
 export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number; capped: boolean; matchedNiches: string[] }> {
   const db = leadsDb();
   const matchedNiches = p.q ? matchNiches(p.q, await getNiches()) : [];
@@ -218,8 +231,9 @@ export async function searchLeads(p: Params, userId?: number | null): Promise<{ 
     }),
   ]);
   const list = rows(page);
-  const open = await unlockedAmong(userId, list.map((r) => r.id));
-  return { leads: list.map((r) => toLead(r, open.has(r.id))), total: count.total, capped: count.capped, matchedNiches };
+  const ids = list.map((r) => r.id);
+  const [open, closed] = await Promise.all([unlockedAmong(userId, ids), closedLeads(userId, ids)]);
+  return { leads: list.map((r) => toLead(r, open.has(r.id), closed.get(r.id) ?? null)), total: count.total, capped: count.capped, matchedNiches };
 }
 
 /** Заведение для показа пользователю: контакты только если он их открыл. */
@@ -227,8 +241,8 @@ export async function getLead(id: string, userId?: number | null): Promise<Lead 
   const rs = await leadsDb().execute({ sql: "SELECT * FROM places WHERE id = ?", args: [id] });
   const r = rows(rs)[0];
   if (!r) return null;
-  const open = await unlockedAmong(userId, [id]);
-  return toLead(r, open.has(id));
+  const [open, closed] = await Promise.all([unlockedAmong(userId, [id]), closedLeads(userId, [id])]);
+  return toLead(r, open.has(id), closed.get(id) ?? null);
 }
 
 /** Заведение с контактами. Вызывать только после проверки, что пользователь его открыл. */

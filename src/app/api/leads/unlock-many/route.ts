@@ -22,5 +22,5 @@ export async function POST(req: Request) {
 
   const r = await unlockMany(auth.user.id, ids);
   if (!r.ok) return json({ error: "Не хватает кредитов", need: r.need, balance: r.balance, needCredits: true }, 402);
-  return json({ ok: true, opened: r.opened, charged: r.charged, balance: r.balance });
+  return json({ ok: true, opened: r.opened, charged: r.charged, balance: r.balance, skipped: r.skipped ?? 0 });
 }

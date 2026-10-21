@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExclusiveBox } from "@/components/ExclusiveBox";
 import { LeadCrm } from "@/components/LeadCrm";
 import { LeadTools } from "@/components/LeadTools";
 import { ScoreRing } from "@/components/ScoreRing";
 import { UnlockPanel } from "@/components/UnlockPanel";
 import { getCurrentUser } from "@/lib/auth";
+import { activeClaimCount, getClaimInfo } from "@/lib/claims";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { getCrm, STATUSES } from "@/lib/crm";
 import { dbReady } from "@/lib/db";
+import { getEntitlements } from "@/lib/entitlements";
 import { SITE_LABEL, formatPhone, reasons, sourceLabel } from "@/lib/format";
 import { getPitches } from "@/lib/pitch-store";
+import { EXCLUSIVE_COST, EXCLUSIVE_DAYS } from "@/lib/plans";
+import { listReports, reportQuota } from "@/lib/reports";
 import { getLabels, getLead } from "@/lib/search";
 
 const DOT = { good: "bg-good", warn: "bg-warn", muted: "bg-muted/50" } as const;
@@ -29,10 +34,16 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const lead = await getLead(decodeURIComponent(id), user?.id);
   if (!lead) notFound();
 
-  const [labels, crm, pitches] = await Promise.all([
+  const open = !!user && lead.unlocked;
+  const [labels, crm, pitches, claim, ent, slotsUsed, reports, quota] = await Promise.all([
     getLabels(),
-    user && lead.unlocked ? getCrm(user.id, [lead.id]) : Promise.resolve(null),
-    user && lead.unlocked ? getPitches(user.id, [lead.id]) : Promise.resolve(null),
+    open ? getCrm(user.id, [lead.id]) : Promise.resolve(null),
+    open ? getPitches(user.id, [lead.id]) : Promise.resolve(null),
+    open ? getClaimInfo(user.id, lead.id) : Promise.resolve(null),
+    open ? getEntitlements(user.id) : Promise.resolve(null),
+    open ? activeClaimCount(user.id) : Promise.resolve(0),
+    open ? listReports(user.id, lead.id) : Promise.resolve([]),
+    open ? reportQuota(user.id) : Promise.resolve(null),
   ]);
   const savedPitch = pitches?.get(lead.id) ?? null;
   const services = lead.services.map((s) => ({ id: s, label: labels.services[s] ?? s }));
@@ -163,10 +174,32 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           {lead.unlocked && (
             <LeadCrm leadId={lead.id} statuses={[...STATUSES]} status={mine?.status ?? "new"} note={mine?.note ?? ""} />
           )}
+
+          {user && lead.unlocked && claim && ent && (
+            <ExclusiveBox
+              leadId={lead.id}
+              v={{
+                ...claim,
+                slots: ent.planId && ent.exclusiveSlots > 0 ? { used: slotsUsed, total: ent.exclusiveSlots } : null,
+                planTitle: ent.planTitle, cost: EXCLUSIVE_COST, days: EXCLUSIVE_DAYS, balance: user.balance,
+              }}
+            />
+          )}
         </div>
 
-        {lead.unlocked ? (
-          <LeadTools leadId={lead.id} hasWebsite={lead.has.website} services={services} phones={lead.phones} email={lead.email} saved={savedPitch} />
+        {lead.unlocked && quota ? (
+          <LeadTools
+            leadId={lead.id} hasWebsite={lead.has.website} services={services} phones={lead.phones} email={lead.email} saved={savedPitch}
+            reports={reports} quota={{ included: quota.included, left: quota.left, cost: quota.cost, planTitle: quota.planTitle }} balance={user?.balance ?? 0}
+          />
+        ) : lead.claimedUntil ? (
+          <section className="card !border-warn p-5">
+            <h2 className="text-sm font-semibold">Заведение в эксклюзиве</h2>
+            <p className="mt-1 text-sm text-muted">
+              Другой пользователь взял это заведение в эксклюзив до {new Date(lead.claimedUntil * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}.
+              Открыть контакты можно будет после окончания срока. Пока посмотрите <Link href="/leads" className="text-accent hover:underline">другие заведения</Link>.
+            </p>
+          </section>
         ) : (
           <UnlockPanel leadId={lead.id} loggedIn={!!user} balance={user?.balance ?? 0} cost={UNLOCK_COST} bonus={SIGNUP_BONUS} />
         )}

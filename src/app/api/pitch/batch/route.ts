@@ -1,6 +1,7 @@
 import { BATCH_MAX, generateBatch } from "@/lib/batch";
 import { json, needUser, readJson } from "@/lib/http";
 import type { Channel, Profile } from "@/lib/pitch";
+import { getEntitlements } from "@/lib/entitlements";
 import { allow } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   const auth = await needUser();
   if ("error" in auth) return auth.error;
 
-  const limit = parseInt(process.env.PITCH_HOURLY_LIMIT ?? "60", 10) || 60;
+  const limit = (await getEntitlements(auth.user.id)).pitchesPerHour; // по подписке лимит выше
   if (!(await allow(`pitch:${auth.user.id}`, limit, 3600, b.ids.length))) {
     return json({ error: `Лимит ${limit} питчей в час. Попробуйте позже.` }, 429);
   }

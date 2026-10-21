@@ -4,10 +4,13 @@ import { LogoutButton } from "@/components/Small";
 import { CopyField } from "@/components/CopyField";
 import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
-import { listPayments } from "@/lib/billing";
-import { getLedger, referralReward } from "@/lib/credits";
+import { listPayments, settlePendingForUser } from "@/lib/billing";
+import { getBalance, getLedger, referralReward } from "@/lib/credits";
 import { plural } from "@/lib/format";
 import { getLeadsUnlocked } from "@/lib/search";
+import { activeClaimCount } from "@/lib/claims";
+import { getEntitlements } from "@/lib/entitlements";
+import { reportQuota } from "@/lib/reports";
 import { getSubscriptions } from "@/lib/subscriptions";
 import { siteUrl } from "@/lib/site";
 import { getReferralInfo } from "@/lib/users";
@@ -15,7 +18,7 @@ import { getReferralInfo } from "@/lib/users";
 export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
-const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", exclusive: "Эксклюзив на заведение", report: "Отчёт для клиента", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
 const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
@@ -23,7 +26,10 @@ export default async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
-  const [payments, ledger, ref, subs] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id)]);
+  // Если вебхук ЮKassa не дошёл, платёж подтянется при заходе в аккаунт.
+  const settled = await settlePendingForUser(user.id).catch(() => 0);
+  const balance = settled ? await getBalance(user.id) : user.balance;
+  const [payments, ledger, ref, subs, ent, claims, quota] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id), getEntitlements(user.id), activeClaimCount(user.id), reportQuota(user.id)]);
   const reward = referralReward();
   const inviteLink = `${await siteUrl()}/r/${ref.code}`;
   const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
@@ -35,7 +41,7 @@ export default async function Account() {
         <div>
           <p className="text-sm text-muted">{user.label}{user.label !== user.email && <span> · вход через Telegram</span>}</p>
           <p className="mt-1 text-3xl font-semibold">
-            {user.balance} <span className="text-lg font-normal text-muted">{plural(user.balance, "кредит", "кредита", "кредитов")}</span>
+            {balance} <span className="text-lg font-normal text-muted">{plural(balance, "кредит", "кредита", "кредитов")}</span>
           </p>
         </div>
         <div className="flex gap-2">
@@ -61,6 +67,11 @@ export default async function Account() {
               </li>
             ))}
           </ul>
+        )}
+        {ent.planId && (
+          <p className="border-t border-line pt-2 text-sm text-muted">
+            Сейчас действует «{ent.planTitle}»: эксклюзивов занято <b className="text-ink">{claims}</b> из {ent.exclusiveSlots}, отчётов клиентам осталось <b className="text-ink">{quota.left}</b> из {ent.reportsPer30d} за 30 дней, докупка кредитов на {ent.packageDiscountPct}% дешевле.
+          </p>
         )}
       </section>
 

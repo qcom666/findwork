@@ -143,6 +143,32 @@ const SCHEMA = [
      created_at INTEGER NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS ix_subs_user ON subscriptions(user_id, starts_at)`,
+  // Эксклюзив: пока until не наступил, заведение не могут открыть другие пользователи. Одна запись на заведение.
+  `CREATE TABLE IF NOT EXISTS lead_claims (
+     lead_id TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     created_at INTEGER NOT NULL,
+     until INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_claims_user ON lead_claims(user_id, until)`,
+  // Отчёт о проверке сайта для клиента по публичной ссылке. profile и findings: JSON. consent_at: когда автор разрешил показать свои контакты на странице.
+  `CREATE TABLE IF NOT EXISTS audit_reports (
+     token TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     lead_id TEXT NOT NULL,
+     lead_name TEXT NOT NULL,
+     site_url TEXT NOT NULL,
+     findings TEXT NOT NULL,
+     profile TEXT NOT NULL,
+     charged INTEGER NOT NULL DEFAULT 0,
+     views INTEGER NOT NULL DEFAULT 0,
+     revoked INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL,
+     consent_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_reports_user ON audit_reports(user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS ix_reports_lead ON audit_reports(user_id, lead_id)`,
 ];
 
 /** Колонки, добавленные позже создания таблицы users. Безопасно запускать повторно и из нескольких процессов сразу. */

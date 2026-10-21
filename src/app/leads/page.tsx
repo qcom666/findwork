@@ -42,7 +42,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
         </div>
         {!user && (
           <Link href="/signup" className="btn btn-primary btn-sm">
-            {SIGNUP_BONUS > 0 ? `${SIGNUP_BONUS} кредитов в подарок` : "Регистрация"}
+            {SIGNUP_BONUS > 0 ? `${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")} в подарок` : "Регистрация"}
           </Link>
         )}
       </header>
@@ -134,8 +134,8 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
         </span>
       </div>
 
-      {user && leads.some((l) => !l.unlocked) && (
-        <UnlockPage ids={leads.filter((l) => !l.unlocked).map((l) => l.id)} balance={user.balance} />
+      {user && leads.some((l) => !l.unlocked && !l.claimedUntil) && (
+        <UnlockPage ids={leads.filter((l) => !l.unlocked && !l.claimedUntil).map((l) => l.id)} balance={user.balance} />
       )}
 
       {leads.length === 0 ? (

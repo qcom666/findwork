@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { mockMode, PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
+import { getEntitlements } from "@/lib/entitlements";
 import { plural } from "@/lib/format";
 import { PLANS } from "@/lib/plans";
 import { seller } from "@/lib/seller";
@@ -21,7 +22,11 @@ const num = (n: number) => n.toLocaleString("ru-RU");
 
 export default async function Pricing() {
   const [user, ready] = await Promise.all([getCurrentUser(), dbReady()]);
-  const [subs, stats] = await Promise.all([user ? getSubscriptions(user.id) : [], ready ? getStats().catch(() => null) : null]);
+  const [subs, stats, ent] = await Promise.all([
+    user ? getSubscriptions(user.id) : [],
+    ready ? getStats().catch(() => null) : null,
+    user ? getEntitlements(user.id) : null,
+  ]);
   const enabled = paymentsEnabled();
   const sub = subs[0];
   const start = PLANS[0];
@@ -65,7 +70,7 @@ export default async function Pricing() {
             <p>
               <b>Вы не вошли</b>
               <span className="text-muted">
-                {SIGNUP_BONUS > 0 ? ` — при регистрации дарим ${SIGNUP_BONUS} кредитов, карта не нужна` : " — зарегистрируйтесь, чтобы открывать контакты"}
+                {SIGNUP_BONUS > 0 ? ` — при регистрации дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}, карта не нужна` : " — зарегистрируйтесь, чтобы открывать контакты"}
               </span>
             </p>
             <Link href="/signup?next=/pricing" className="btn btn-primary btn-sm">Создать аккаунт</Link>
@@ -109,7 +114,7 @@ export default async function Pricing() {
             Чем дольше срок, тем ниже цена контакта. Количество контактов точное, без «примерно»: сколько указано, столько и получите.
           </p>
         </div>
-        <PricingSwitcher packages={PACKAGES} enabled={enabled} />
+        <PricingSwitcher packages={PACKAGES} enabled={enabled} packageDiscountPct={ent?.packageDiscountPct ?? 0} />
       </section>
 
       {user && (

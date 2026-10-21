@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { mailtoUrl, telegramUrl, telUrl, whatsappUrl } from "@/lib/send";
+import { ReportBox, type QuotaView, type ReportItem } from "./ReportBox";
 import { useProfile, type Profile } from "./useProfile";
 
 type Finding = { level: "bad" | "warn" | "ok" | "info"; text: string };
@@ -25,7 +26,7 @@ const LEVEL = {
 } as const;
 
 
-export function LeadTools({ leadId, hasWebsite, services, phones, email, saved }: { leadId: string; hasWebsite: boolean; services: Service[]; phones: string[]; email: string | null; saved?: SavedPitchView | null }) {
+export function LeadTools({ leadId, hasWebsite, services, phones, email, saved, reports, quota, balance }: { leadId: string; hasWebsite: boolean; services: Service[]; phones: string[]; email: string | null; saved?: SavedPitchView | null; reports: ReportItem[]; quota: QuotaView; balance: number }) {
   const [profile, updateProfile] = useProfile();
   const [audit, setAudit] = useState<Audit | null>(null);
   const [auditing, setAuditing] = useState(false);
@@ -98,6 +99,8 @@ export function LeadTools({ leadId, hasWebsite, services, phones, email, saved }
         </section>
       )}
 
+      {hasWebsite && <ReportBox leadId={leadId} profile={profile} quota={quota} reports={reports} balance={balance} />}
+
       <section className="card p-5">
         <h2 className="text-sm font-semibold">Питч</h2>
         <p className="text-xs text-muted">Первое сообщение владельцу. Сначала расскажите о себе, это сохранится в браузере.</p>
@@ -107,6 +110,7 @@ export function LeadTools({ leadId, hasWebsite, services, phones, email, saved }
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Input label="Имя" value={profile.name} onChange={(v) => updateProfile({ name: v })} placeholder="Алексей" />
             <Input label="Цена от" value={profile.priceFrom} onChange={(v) => updateProfile({ priceFrom: v })} placeholder="15 000 ₽" />
+            <Input label="Контакт для клиента (для отчёта)" value={profile.contact} onChange={(v) => updateProfile({ contact: v })} placeholder="Telegram @name или телефон" className="sm:col-span-2" />
             <Input label="Что делаю" value={profile.skills} onChange={(v) => updateProfile({ skills: v })} placeholder="Лендинги на Tilda и Next.js" className="sm:col-span-2" />
             <Input label="Портфолио (ссылка)" value={profile.portfolio} onChange={(v) => updateProfile({ portfolio: v })} placeholder="https://" className="sm:col-span-2" />
           </div>

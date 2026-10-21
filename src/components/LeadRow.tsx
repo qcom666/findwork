@@ -33,6 +33,7 @@ export function LeadRow({ l, niche }: { l: Lead; niche: string }) {
           <Mark on={l.has.email}>e-mail</Mark>
           <Mark on={l.has.social}>соцсети</Mark>
           {l.unlocked && <span className="whitespace-nowrap rounded-md bg-accent-soft px-1.5 py-0.5 font-medium text-accent">открыт</span>}
+          {l.claimedUntil && <span className="whitespace-nowrap rounded-md bg-warn-soft px-1.5 py-0.5 font-medium text-warn" title="Другой пользователь взял заведение в эксклюзив">эксклюзив</span>}
         </span>
       </Link>
     </li>

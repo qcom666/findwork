@@ -3,6 +3,7 @@ import { isUnlocked } from "@/lib/credits";
 import { json, needUser, readJson } from "@/lib/http";
 import { makePitch, type Channel, type Profile } from "@/lib/pitch";
 import { savePitch } from "@/lib/pitch-store";
+import { getEntitlements } from "@/lib/entitlements";
 import { allow } from "@/lib/ratelimit";
 import { getLabels, getLeadsUnlocked } from "@/lib/search";
 
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   const lead = (await getLeadsUnlocked([b.id]))[0];
   if (!lead) return json({ error: "Заведение не найдено" }, 404);
 
-  const limit = parseInt(process.env.PITCH_HOURLY_LIMIT ?? "60", 10) || 60;
+  const limit = (await getEntitlements(auth.user.id)).pitchesPerHour; // по подписке лимит выше
   if (!(await allow(`pitch:${auth.user.id}`, limit, 3600))) return json({ error: `Лимит ${limit} питчей в час. Попробуйте позже.` }, 429);
 
   const labels = await getLabels();

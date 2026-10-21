@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { plural } from "@/lib/format";
 
 export function UnlockPanel({
   leadId, loggedIn, balance, cost, bonus,
@@ -40,7 +41,7 @@ export function UnlockPanel({
       {!loggedIn ? (
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href={`/signup?next=${encodeURIComponent(`/lead/${leadId}`)}`} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90">
-            Зарегистрироваться{bonus > 0 ? ` и получить ${bonus} кредитов` : ""}
+            Зарегистрироваться{bonus > 0 ? ` и получить ${bonus} ${plural(bonus, "кредит", "кредита", "кредитов")}` : ""}
           </Link>
           <Link href={`/login?next=${encodeURIComponent(`/lead/${leadId}`)}`} className="rounded-lg border border-line px-4 py-2.5 text-sm hover:border-accent">
             Войти

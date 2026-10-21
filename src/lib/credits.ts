@@ -1,7 +1,8 @@
+import { claimedByOthers } from "./claims";
 import { appDb, writeTx } from "./db";
 
 export const UNLOCK_COST = 1;
-export const SIGNUP_BONUS = Math.max(0, parseInt(process.env.SIGNUP_BONUS_CREDITS ?? "10", 10) || 0);
+export const SIGNUP_BONUS = Math.max(0, parseInt(process.env.SIGNUP_BONUS_CREDITS ?? "3", 10) || 0);
 
 /** Сколько кредитов получает пригласивший, когда приглашённый впервые покупает кредиты. 0 выключает награду. */
 export const referralReward = () => Math.max(0, parseInt(process.env.REFERRAL_REWARD_CREDITS ?? "10", 10) || 0);
@@ -10,7 +11,8 @@ const now = () => Math.floor(Date.now() / 1000);
 
 export type UnlockResult =
   | { ok: true; charged: number; balance: number }
-  | { ok: false; reason: "insufficient"; balance: number };
+  | { ok: false; reason: "insufficient"; balance: number }
+  | { ok: false; reason: "claimed"; until: number };
 
 /**
  * Открывает контакты лида за кредит. Повторное открытие бесплатно.
@@ -24,10 +26,14 @@ export async function unlockLead(userId: number, leadId: string, cost = UNLOCK_C
     const exists = await tx.execute({ sql: "SELECT 1 FROM unlocks WHERE user_id = ? AND lead_id = ?", args: [userId, leadId] });
     if (exists.rows.length) return { value: { ok: true, charged: 0, balance: await bal() } };
 
+    const t = now();
+    // Чужой эксклюзив закрывает заведение для тех, кто его ещё не открывал; свой и уже открытое не мешают.
+    const blocked = (await claimedByOthers(tx, userId, [leadId], t)).get(leadId);
+    if (blocked) return { value: { ok: false, reason: "claimed", until: blocked }, rollback: true };
+
     const balance = await bal();
     if (balance < cost) return { value: { ok: false, reason: "insufficient", balance }, rollback: true };
 
-    const t = now();
     await tx.execute({ sql: "UPDATE users SET balance = balance - ? WHERE id = ?", args: [cost, userId] });
     await tx.execute({ sql: "INSERT INTO unlocks(user_id, lead_id, created_at) VALUES (?, ?, ?)", args: [userId, leadId, t] });
     await tx.execute({
@@ -39,7 +45,7 @@ export async function unlockLead(userId: number, leadId: string, cost = UNLOCK_C
 }
 
 export type UnlockManyResult =
-  | { ok: true; opened: number; charged: number; balance: number }
+  | { ok: true; opened: number; charged: number; balance: number; /** сколько заведений пропущено: они в чужом эксклюзиве */ skipped?: number }
   | { ok: false; reason: "insufficient"; need: number; balance: number };
 
 /**
@@ -59,13 +65,15 @@ export async function unlockMany(userId: number, leadIds: string[], cost = UNLOC
           ).rows.map((r) => String(r.lead_id))
         : [],
     );
-    const fresh = ids.filter((i) => !have.has(i));
+    const t = now();
+    const closed = await claimedByOthers(tx, userId, ids.filter((i) => !have.has(i)), t);
+    const fresh = ids.filter((i) => !have.has(i) && !closed.has(i));
+    const skip = closed.size ? { skipped: closed.size } : {};
     const balance = Number((await tx.execute({ sql: "SELECT balance FROM users WHERE id = ?", args: [userId] })).rows[0]?.balance ?? 0);
     const total = fresh.length * cost;
     if (total > balance) return { value: { ok: false, reason: "insufficient", need: total, balance }, rollback: true };
-    if (!fresh.length) return { value: { ok: true, opened: 0, charged: 0, balance } };
+    if (!fresh.length) return { value: { ok: true, opened: 0, charged: 0, balance, ...skip } };
 
-    const t = now();
     await tx.execute({ sql: "UPDATE users SET balance = balance - ? WHERE id = ?", args: [total, userId] });
     for (const id of fresh) {
       await tx.execute({ sql: "INSERT INTO unlocks(user_id, lead_id, created_at) VALUES (?, ?, ?)", args: [userId, id, t] });
@@ -74,7 +82,7 @@ export async function unlockMany(userId: number, leadIds: string[], cost = UNLOC
         args: [userId, -cost, id, t],
       });
     }
-    return { value: { ok: true, opened: fresh.length, charged: total, balance: balance - total } };
+    return { value: { ok: true, opened: fresh.length, charged: total, balance: balance - total, ...skip } };
   });
 }
 

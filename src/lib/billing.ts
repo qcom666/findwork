@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { referralReward } from "./credits";
 import { appDb, writeTx } from "./db";
+import { getEntitlements, entitlementsAt } from "./entitlements";
 import { plural } from "./format";
 import { getPlan, planCredits, planPrice, type Plan } from "./plans";
 import { startSubscription } from "./subscriptions";
@@ -134,10 +135,16 @@ async function createPayment(user: { id: number; email: string }, o: Order, base
   }
 }
 
-export function createCheckout(user: { id: number; email: string }, pkg: Package, baseUrl: string) {
+/** Цена пакета для пользователя: подписчики докупают со скидкой по своему тарифу. */
+export function packagePrice(pkg: Package, discountPct: number): number {
+  return Math.round((pkg.priceRub * (100 - discountPct)) / 100);
+}
+
+export async function createCheckout(user: { id: number; email: string }, pkg: Package, baseUrl: string) {
+  const { packageDiscountPct } = await getEntitlements(user.id);
   return createPayment(
     user,
-    { packageId: pkg.id, kind: "credits", credits: pkg.credits, priceRub: pkg.priceRub, description: `FindWork: ${pkg.credits} кредитов` },
+    { packageId: pkg.id, kind: "credits", credits: pkg.credits, priceRub: packagePrice(pkg, packageDiscountPct), description: `FindWork: ${pkg.credits} кредитов` },
     baseUrl,
   );
 }
@@ -176,10 +183,12 @@ export async function fulfillPayment(paymentId: string): Promise<boolean> {
     }
 
     // Реферальная награда: пригласивший получает кредиты один раз, за первую покупку приглашённого.
-    const reward = referralReward();
-    if (reward > 0) {
+    const baseReward = referralReward();
+    if (baseReward > 0) {
       const ref = (await tx.execute({ sql: "SELECT referred_by FROM users WHERE id = ?", args: [Number(p.user_id)] })).rows[0]?.referred_by;
       if (ref != null && Number(ref) !== Number(p.user_id)) {
+        // Подписчики получают больше: множитель зависит от тарифа пригласившего на момент оплаты.
+        const reward = baseReward * (await entitlementsAt(tx, Number(ref), t)).referralMultiplier;
         const done = await tx.execute({ sql: "SELECT 1 FROM referral_rewards WHERE referred_id = ?", args: [Number(p.user_id)] });
         if (!done.rows.length) {
           await tx.execute({ sql: "INSERT INTO referral_rewards(referred_id, referrer_id, credits, created_at) VALUES (?, ?, ?, ?)", args: [Number(p.user_id), Number(ref), reward, t] });
@@ -226,6 +235,33 @@ export async function settleByProviderId(providerPaymentId: string): Promise<Set
     return "canceled";
   }
   return "pending";
+}
+
+/**
+ * Подстраховка на случай, когда вебхук не дошёл (не настроен или общий магазин ЮKassa смотрит на другой сайт):
+ * сверяем с ЮKassa платежи пользователя, которые ждут подтверждения не дольше трёх суток. Безопасно вызывать часто:
+ * без ожидающих платежей это один быстрый запрос, а повторные сверки ничего не начисляют дважды.
+ */
+export async function settlePendingForUser(userId: number): Promise<number> {
+  if (!yookassaConfigured()) return 0;
+  const db = await appDb();
+  const rows = (
+    await db.execute({
+      sql: `SELECT provider_payment_id FROM payments
+            WHERE user_id = ? AND status = 'pending' AND provider = 'yookassa' AND provider_payment_id IS NOT NULL AND created_at > ?
+            ORDER BY created_at DESC LIMIT 5`,
+      args: [userId, now() - 3 * 86400],
+    })
+  ).rows;
+  let paid = 0;
+  for (const r of rows) {
+    const res = await settleByProviderId(String(r.provider_payment_id)).catch((e) => {
+      console.error("[billing] сверка платежа не удалась", e);
+      return "pending" as SettleResult;
+    });
+    if (res === "succeeded") paid++;
+  }
+  return paid;
 }
 
 export type PaymentRow = {

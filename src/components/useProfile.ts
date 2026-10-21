@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-export type Profile = { name: string; skills: string; portfolio: string; priceFrom: string };
+export type Profile = { name: string; skills: string; portfolio: string; priceFrom: string; contact: string };
 
-export const EMPTY_PROFILE: Profile = { name: "", skills: "", portfolio: "", priceFrom: "" };
+export const EMPTY_PROFILE: Profile = { name: "", skills: "", portfolio: "", priceFrom: "", contact: "" };
 const KEY = "findwork.profile";
 
 /** Профиль фрилансера для питчей. Хранится только в браузере и общий для карточки лида и пакетных питчей. */

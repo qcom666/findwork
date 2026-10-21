@@ -3,13 +3,40 @@
  * Подписка не продлевается сама: платите один раз за выбранный срок, кредиты приходят раз в месяц.
  * Цены условные: меняйте здесь, оферта и страницы подтянут новые значения.
  */
-export type Plan = { id: string; title: string; tagline: string; creditsPerMonth: number; priceMonthRub: number; popular?: boolean };
+/**
+ * Что подписка даёт сверх кредитов. Права действуют, пока подписка идёт, и считаются в entitlements.ts.
+ * exclusiveSlots: сколько заведений можно держать в эксклюзиве одновременно;
+ * reportsPer30d: сколько отчётов для клиента по ссылке входит в тариф за 30 дней (сверх: REPORT_COST);
+ * packageDiscountPct: скидка на разовые пакеты кредитов; pitchesPerHour: лимит генерации питчей в час;
+ * referralMultiplier: во сколько раз больше награда за приглашённого, который впервые заплатил.
+ */
+export type Perks = { exclusiveSlots: number; reportsPer30d: number; packageDiscountPct: number; pitchesPerHour: number; referralMultiplier: number };
+export type Plan = { id: string; title: string; tagline: string; creditsPerMonth: number; priceMonthRub: number; perks: Perks; popular?: boolean };
+
+/** Без подписки. Лимит питчей в час можно переопределить PITCH_HOURLY_LIMIT, см. entitlements.ts. */
+export const BASE_PERKS: Perks = { exclusiveSlots: 0, reportsPer30d: 0, packageDiscountPct: 0, pitchesPerHour: 60, referralMultiplier: 1 };
+
+/** Эксклюзив: сколько кредитов стоит и на сколько дней закрывает заведение для тех, кто его ещё не открывал. */
+export const EXCLUSIVE_COST = 3;
+export const EXCLUSIVE_DAYS = 30;
+/** Отчёт для клиента: цена сверх тарифа или без подписки, срок жизни ссылки. */
+export const REPORT_COST = 1;
+export const REPORT_DAYS = 30;
 export type Period = { months: number; discountPct: number };
 
 export const PLANS: Plan[] = [
-  { id: "freelance", title: "Фриланс", tagline: "Для старта и теста ниши", creditsPerMonth: 400, priceMonthRub: 990 },
-  { id: "studio", title: "Студия", tagline: "Для активных продаж", creditsPerMonth: 1500, priceMonthRub: 2490, popular: true },
-  { id: "agency", title: "Агентство", tagline: "Для команд и потока", creditsPerMonth: 5000, priceMonthRub: 4990 },
+  {
+    id: "freelance", title: "Фриланс", tagline: "Для старта и теста ниши", creditsPerMonth: 400, priceMonthRub: 990,
+    perks: { exclusiveSlots: 5, reportsPer30d: 10, packageDiscountPct: 10, pitchesPerHour: 100, referralMultiplier: 1 },
+  },
+  {
+    id: "studio", title: "Студия", tagline: "Для активных продаж", creditsPerMonth: 1500, priceMonthRub: 2490, popular: true,
+    perks: { exclusiveSlots: 25, reportsPer30d: 60, packageDiscountPct: 20, pitchesPerHour: 200, referralMultiplier: 2 },
+  },
+  {
+    id: "agency", title: "Агентство", tagline: "Для команд и потока", creditsPerMonth: 5000, priceMonthRub: 4990,
+    perks: { exclusiveSlots: 100, reportsPer30d: 300, packageDiscountPct: 30, pitchesPerHour: 500, referralMultiplier: 2 },
+  },
 ];
 
 export const PERIODS: Period[] = [

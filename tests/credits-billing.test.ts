@@ -6,7 +6,7 @@ import path from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { createCheckout, fulfillPayment, getPackage, getPayment, settleByProviderId, yookassaIpAllowed } from "../src/lib/billing";
+import { createCheckout, fulfillPayment, getPackage, getPayment, settleByProviderId, settlePendingForUser, yookassaIpAllowed } from "../src/lib/billing";
 import { getBalance, getLedger, isUnlocked, unlockLead, unlockMany } from "../src/lib/credits";
 import { __resetAppDbForTests } from "../src/lib/db";
 import { maskEmail, maskPhone, socialNames } from "../src/lib/mask";
@@ -239,6 +239,32 @@ describe("платежи", () => {
       behaviour = () => ({ status: 200, json: { id: "yoo-cancel", status: "canceled", paid: false } });
       assert.equal(await settleByProviderId("yoo-cancel"), "canceled");
       assert.equal((await getPayment(u, id))?.status, "canceled");
+      assert.equal(await getBalance(u), 0);
+    });
+
+    it("подстраховка без вебхука: заход в аккаунт сверяет ожидающие платежи и зачисляет кредиты один раз", async () => {
+      const u = await newUser(0);
+      await pendingPayment(u, "yoo-fallback");
+      behaviour = () => ({ status: 200, json: { id: "yoo-fallback", status: "succeeded", paid: true, amount: { value: "490.00", currency: "RUB" } } });
+      assert.equal(await settlePendingForUser(u), 1);
+      assert.equal(await getBalance(u), 100);
+      assert.equal(await settlePendingForUser(u), 0, "платёж уже не ожидает");
+      assert.equal(await getBalance(u), 100);
+      assert.equal(await settlePendingForUser(await newUser(0)), 0, "у другого пользователя ничего нет");
+    });
+
+    it("подстраховка не трогает старые ожидающие платежи и не падает при сбое ЮKassa", async () => {
+      const u = await newUser(0);
+      const id = await pendingPayment(u, "yoo-old");
+      await db.execute({ sql: "UPDATE payments SET created_at = ? WHERE id = ?", args: [Math.floor(Date.now() / 1000) - 5 * 86400, id] });
+      requests = [];
+      assert.equal(await settlePendingForUser(u), 0);
+      assert.equal(requests.length, 0, "старше трёх суток не сверяем");
+
+      const fresh = await pendingPayment(u, "yoo-flaky");
+      void fresh;
+      behaviour = () => ({ status: 503, json: {} });
+      assert.equal(await settlePendingForUser(u), 0);
       assert.equal(await getBalance(u), 0);
     });
 
