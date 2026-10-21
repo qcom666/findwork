@@ -24,7 +24,9 @@ export async function POST(req: Request) {
     await ensureWebhook(appBaseUrl(req));
   } catch (e) {
     console.error("[telegram] бот входа недоступен", e);
-    return json({ error: "Вход через бота сейчас недоступен. Войдите по e-mail или попробуйте позже." }, 503);
+    // code нужен владельцу для диагностики: токен не принят Telegram или Telegram недоступен. Сам токен и текст ошибки не отдаём.
+    const code = /Unauthorized|Not Found/i.test((e as Error).message) ? "token_rejected" : "telegram_unavailable";
+    return json({ error: "Вход через бота сейчас недоступен. Войдите по e-mail или попробуйте позже.", code }, 503);
   }
 
   const r = await createLoginRequest({ mode, userId: user?.id, ip, ua: req.headers.get("user-agent") ?? "" });
