@@ -8,20 +8,22 @@ import { listPayments } from "@/lib/billing";
 import { getLedger, referralReward } from "@/lib/credits";
 import { plural } from "@/lib/format";
 import { getLeadsUnlocked } from "@/lib/search";
+import { getSubscriptions } from "@/lib/subscriptions";
 import { siteUrl } from "@/lib/site";
 import { getReferralInfo } from "@/lib/users";
 
 export const metadata = { title: "Аккаунт" };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
-const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
+const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };
 const dt = (s: number) => new Date(s * 1000).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
 export default async function Account() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
-  const [payments, ledger, ref] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id)]);
+  const [payments, ledger, ref, subs] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id)]);
   const reward = referralReward();
   const inviteLink = `${await siteUrl()}/r/${ref.code}`;
   const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
@@ -40,6 +42,26 @@ export default async function Account() {
           <Link href="/pricing" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90">Пополнить</Link>
           <LogoutButton />
         </div>
+      </section>
+
+      <section className="card space-y-2 p-5">
+        <h2 className="text-sm font-semibold">Подписка</h2>
+        {subs.length === 0 ? (
+          <p className="text-sm text-muted">
+            Подписки нет. Она дешевле разовых пакетов: кредиты приходят каждый месяц, автопродления нет.{" "}
+            <Link href="/pricing" className="text-accent hover:underline">Посмотреть тарифы</Link>
+          </p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {subs.map((s, i) => (
+              <li key={`${s.startsAt}-${i}`}>
+                <b>«{s.title}»</b>, {s.creditsPerMonth} {plural(s.creditsPerMonth, "кредит", "кредита", "кредитов")} в месяц
+                {s.startsAt * 1000 > Date.now() ? <span className="text-muted"> · начнётся {day(s.startsAt)}</span> : <span className="text-muted"> · оплачена до {day(s.endsAt)}</span>}
+                {s.nextGrantAt && <span className="text-muted"> · следующие кредиты {day(s.nextGrantAt)}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section>
@@ -68,7 +90,7 @@ export default async function Account() {
           <ul className="divide-y divide-line overflow-hidden card text-sm">
             {payments.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                <span>{p.credits} кредитов · {p.amountRub.toLocaleString("ru-RU")} ₽</span>
+                <span>{p.title} · {p.amountRub.toLocaleString("ru-RU")} ₽</span>
                 <span className="text-muted">{STATUS[p.status] ?? p.status} · {dt(p.createdAt)}</span>
               </li>
             ))}

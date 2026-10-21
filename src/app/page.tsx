@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { PricingSwitcher } from "@/components/PricingSwitcher";
 import { RoiCalculator } from "@/components/RoiCalculator";
 import { ARTICLES, readingMinutes } from "@/content/articles";
 import { ScoreRing } from "@/components/ScoreRing";
 import { getCurrentUser } from "@/lib/auth";
-import { PACKAGES } from "@/lib/billing";
+import { PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { dbReady } from "@/lib/db";
 import { SERVICE_SHORT, plural } from "@/lib/format";
@@ -29,6 +30,7 @@ const FAQ = [
   { q: "Что значит «сайта нет»?", a: "Ссылки на собственный сайт нет в открытых данных. Бывает, что сайт есть, а его просто не внесли, поэтому в карточке есть быстрая проверка на картах, а питч пишет «не нашёл ссылку», а не «у вас нет сайта»." },
   { q: "Можно ли писать заведениям?", a: "Да, но рекламу по телефону и e-mail по закону (ст. 18 «О рекламе») можно слать только с согласия получателя. Начинайте с короткого личного сообщения, не делайте массовых рассылок и сразу прекращайте писать тем, кто попросил." },
   { q: "За что я плачу?", a: "За открытие контактов одного заведения, вместе с проверкой сайта и питчем. Просматривать каталог, оценки и причины бесплатно. Кредиты не сгорают." },
+  { q: "Подписка продлевается сама?", a: "Нет. Вы платите один раз за выбранный срок (1, 3 или 12 месяцев), карта не привязывается и повторных списаний не будет. Кредиты приходят раз в месяц, по окончании срока подписка просто заканчивается, а начисленные кредиты остаются у вас." },
   { q: "Сколько данных в базе?", a: "Сотни тысяч заведений в крупных городах. Это меньше, чем в закрытых картах, зато данные открытые и честные. Каталог растёт с каждым обновлением." },
 ];
 
@@ -67,7 +69,7 @@ export default async function Home() {
                 </Link>
               )}
             </div>
-            <p className="mt-4 text-sm text-muted">Без подписки: платите только за открытые контакты.</p>
+            <p className="mt-4 text-sm text-muted">Платите за открытые контакты: разовыми кредитами или выгодной подпиской.</p>
           </div>
 
           <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true">
@@ -173,18 +175,8 @@ export default async function Home() {
       </section>
 
       <section className="space-y-8">
-        <SectionTitle title="Тарифы" sub={`Платите за открытые контакты. ${UNLOCK_COST} кредит — одно заведение со всеми инструментами.`} />
-        <div className="grid gap-4 md:grid-cols-3">
-          {PACKAGES.map((p, i) => (
-            <div key={p.id} className={`card p-5 ${i === 1 ? "!border-accent" : ""}`}>
-              <p className="font-semibold">{p.title}</p>
-              <p className="mt-3 text-3xl font-bold tabular-nums">{p.priceRub.toLocaleString("ru-RU")} ₽</p>
-              <p className="mt-1 text-sm text-muted">
-                {p.credits} {plural(p.credits, "кредит", "кредита", "кредитов")} · {(p.priceRub / p.credits).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ₽ за лид
-              </p>
-            </div>
-          ))}
-        </div>
+        <SectionTitle title="Тарифы" sub={`Подписка или разовые кредиты. ${UNLOCK_COST} кредит — одно заведение со всеми инструментами.`} />
+        <PricingSwitcher packages={PACKAGES} enabled={paymentsEnabled()} />
         <p className="text-sm text-muted">
           Кредиты не сгорают. {SIGNUP_BONUS > 0 && `При регистрации дарим ${SIGNUP_BONUS}. `}
           <Link href="/pricing" className="text-accent hover:underline">Подробнее о тарифах</Link>

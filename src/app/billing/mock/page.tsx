@@ -16,7 +16,7 @@ export default async function MockCheckout({ searchParams }: { searchParams: Pro
   return (
     <div className="mx-auto max-w-md card !border-warn p-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-warn">Тестовый режим, деньги не списываются</p>
-      <h1 className="mt-2 text-xl font-semibold">Оплата {p.credits} кредитов</h1>
+      <h1 className="mt-2 text-xl font-semibold">Оплата: {p.title}</h1>
       <p className="mt-1 text-muted">К оплате: {p.amountRub.toLocaleString("ru-RU")} ₽</p>
       <div className="mt-5">{p.status === "pending" ? <MockPay paymentId={p.id} /> : <p className="text-sm text-muted">Платёж уже обработан: {p.status}</p>}</div>
     </div>

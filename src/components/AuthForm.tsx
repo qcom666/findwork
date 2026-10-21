@@ -8,6 +8,8 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accept, setAccept] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const signup = mode === "signup";
@@ -19,7 +21,7 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
       const res = await fetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(signup ? { email, password, accept, consent } : { email, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Ошибка");
@@ -53,17 +55,23 @@ export function AuthForm({ mode, next, bonus }: { mode: "login" | "signup"; next
             value={password} onChange={(e) => setPassword(e.target.value)} className="field"
           />
         </label>
+        {signup && (
+          <div className="space-y-2 text-xs text-muted">
+            <label className="flex items-start gap-2">
+              <input type="checkbox" required checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-0.5" />
+              <span>Принимаю условия <Link href="/terms" target="_blank" className="underline">оферты</Link> и ознакомился с <Link href="/privacy" target="_blank" className="underline">политикой конфиденциальности</Link></span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
+              <span>Даю <Link href="/consent" target="_blank" className="underline">согласие на обработку персональных данных</Link></span>
+            </label>
+          </div>
+        )}
         {err && <p className="text-sm text-bad">{err}</p>}
         {!signup && <p className="text-right text-sm"><Link href="/forgot" className="text-muted hover:text-ink hover:underline">Забыли пароль?</Link></p>}
         <button disabled={busy} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-60">
           {busy ? "Подождите…" : signup ? "Создать аккаунт" : "Войти"}
         </button>
-        {signup && (
-          <p className="text-xs text-muted">
-            Регистрируясь, вы принимаете <Link href="/terms" className="underline">оферту</Link> и{" "}
-            <Link href="/privacy" className="underline">политику конфиденциальности</Link>.
-          </p>
-        )}
       </form>
       <p className="mt-4 text-center text-sm text-muted">
         {signup ? "Уже есть аккаунт?" : "Нет аккаунта?"}{" "}

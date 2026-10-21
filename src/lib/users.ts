@@ -16,8 +16,9 @@ export type CreateResult = { ok: true; userId: number } | { ok: false; error: st
 /**
  * Создаёт пользователя с бонусом за регистрацию и своим реферальным кодом.
  * refCode: код пригласившего. Неизвестный код и свой собственный молча игнорируются.
+ * consentVersion: редакция документов, которую принял пользователь (сохраняем вместе со временем согласия).
  */
-export async function createUser(email: string, passHash: string, refCode?: string | null): Promise<CreateResult> {
+export async function createUser(email: string, passHash: string, refCode?: string | null, consentVersion?: string): Promise<CreateResult> {
   const mail = email.trim().toLowerCase();
   const t = now();
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -33,8 +34,8 @@ export async function createUser(email: string, passHash: string, refCode?: stri
           if (r) referrer = Number(r.id);
         }
         const ins = await tx.execute({
-          sql: "INSERT INTO users(email, pass_hash, balance, created_at, ref_code, referred_by) VALUES (?, ?, ?, ?, ?, ?)",
-          args: [mail, passHash, SIGNUP_BONUS, t, mine, referrer],
+          sql: "INSERT INTO users(email, pass_hash, balance, created_at, ref_code, referred_by, consent_at, consent_ver) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [mail, passHash, SIGNUP_BONUS, t, mine, referrer, consentVersion ? t : null, consentVersion ?? null],
         });
         const userId = Number(ins.lastInsertRowid);
         if (SIGNUP_BONUS > 0) {

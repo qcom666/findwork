@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { referralReward } from "./credits";
 import { appDb, writeTx } from "./db";
+import { plural } from "./format";
+import { getPlan, planCredits, planPrice, type Plan } from "./plans";
+import { startSubscription } from "./subscriptions";
 
 export type Package = { id: string; title: string; credits: number; priceRub: number };
 
@@ -67,7 +70,7 @@ async function yoo(path: string, init: { method?: string; idempotenceKey?: strin
   return (await res.json()) as YooPayment;
 }
 
-function receipt(email: string, pkg: Package, value: string) {
+function receipt(email: string, description: string, value: string) {
   // Нужен только ИП и ООО, у которых включены «Чеки от ЮKassa». Самозанятым чек формирует «Мой налог».
   if (process.env.YOOKASSA_RECEIPT !== "1") return {};
   return {
@@ -75,7 +78,7 @@ function receipt(email: string, pkg: Package, value: string) {
       customer: { email },
       items: [
         {
-          description: `FindWork: ${pkg.credits} кредитов`.slice(0, 128),
+          description: description.slice(0, 128),
           quantity: "1.00",
           amount: { value, currency: "RUB" },
           vat_code: parseInt(process.env.YOOKASSA_VAT_CODE ?? "1", 10), // 1 = без НДС
@@ -90,23 +93,24 @@ function receipt(email: string, pkg: Package, value: string) {
 
 // ---------------------------------------------------------------- платежи
 
-export async function createCheckout(
-  user: { id: number; email: string },
-  pkg: Package,
-  baseUrl: string,
-): Promise<{ paymentId: string; url: string }> {
+type Order = {
+  packageId: string; kind: "credits" | "subscription"; planId?: string; months?: number;
+  credits: number; priceRub: number; description: string;
+};
+
+async function createPayment(user: { id: number; email: string }, o: Order, baseUrl: string): Promise<{ paymentId: string; url: string }> {
   const db = await appDb();
   const id = randomUUID();
   const provider = yookassaConfigured() ? "yookassa" : "mock";
   await db.execute({
-    sql: `INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at)
-          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    args: [id, user.id, pkg.id, pkg.credits, pkg.priceRub * 100, provider, now()],
+    sql: `INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at, kind, plan_id, months)
+          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+    args: [id, user.id, o.packageId, o.credits, o.priceRub * 100, provider, now(), o.kind, o.planId ?? null, o.months ?? null],
   });
 
   if (provider === "mock") return { paymentId: id, url: `/billing/mock?payment=${id}` };
 
-  const value = pkg.priceRub.toFixed(2);
+  const value = o.priceRub.toFixed(2);
   try {
     const yp = await yoo("/payments", {
       method: "POST",
@@ -115,9 +119,9 @@ export async function createCheckout(
         amount: { value, currency: "RUB" },
         capture: true,
         confirmation: { type: "redirect", return_url: `${baseUrl}/billing/return?payment=${id}` },
-        description: `FindWork: ${pkg.credits} кредитов`.slice(0, 128),
+        description: o.description.slice(0, 128),
         metadata: { payment_id: id, user_id: String(user.id) },
-        ...receipt(user.email, pkg, value),
+        ...receipt(user.email, o.description, value),
       },
     });
     const url = yp.confirmation?.confirmation_url;
@@ -130,6 +134,27 @@ export async function createCheckout(
   }
 }
 
+export function createCheckout(user: { id: number; email: string }, pkg: Package, baseUrl: string) {
+  return createPayment(
+    user,
+    { packageId: pkg.id, kind: "credits", credits: pkg.credits, priceRub: pkg.priceRub, description: `FindWork: ${pkg.credits} кредитов` },
+    baseUrl,
+  );
+}
+
+/** Подписка на months месяцев с оплатой один раз; автопродления нет. */
+export function createSubscriptionCheckout(user: { id: number; email: string }, plan: Plan, months: number, baseUrl: string) {
+  return createPayment(
+    user,
+    {
+      packageId: `${plan.id}:${months}`, kind: "subscription", planId: plan.id, months,
+      credits: planCredits(plan, months), priceRub: planPrice(plan, months),
+      description: `FindWork: подписка «${plan.title}», ${months} мес.`,
+    },
+    baseUrl,
+  );
+}
+
 /** Зачисляет кредиты за оплаченный платёж. Безопасно вызывать сколько угодно раз: начислит один. */
 export async function fulfillPayment(paymentId: string): Promise<boolean> {
   return writeTx<boolean>(async (tx) => {
@@ -139,12 +164,16 @@ export async function fulfillPayment(paymentId: string): Promise<boolean> {
       args: [t, paymentId],
     });
     if (upd.rowsAffected !== 1) return { value: false, rollback: true };
-    const p = (await tx.execute({ sql: "SELECT user_id, credits FROM payments WHERE id = ?", args: [paymentId] })).rows[0];
-    await tx.execute({ sql: "UPDATE users SET balance = balance + ? WHERE id = ?", args: [Number(p.credits), Number(p.user_id)] });
-    await tx.execute({
-      sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'purchase', ?, ?)",
-      args: [Number(p.user_id), Number(p.credits), paymentId, t],
-    });
+    const p = (await tx.execute({ sql: "SELECT user_id, credits, kind, plan_id, months FROM payments WHERE id = ?", args: [paymentId] })).rows[0];
+    if (p.kind === "subscription") {
+      await startSubscription(tx, { userId: Number(p.user_id), paymentId, planId: String(p.plan_id), months: Number(p.months), creditsTotal: Number(p.credits) }, t);
+    } else {
+      await tx.execute({ sql: "UPDATE users SET balance = balance + ? WHERE id = ?", args: [Number(p.credits), Number(p.user_id)] });
+      await tx.execute({
+        sql: "INSERT INTO ledger(user_id, delta, reason, ref, created_at) VALUES (?, ?, 'purchase', ?, ?)",
+        args: [Number(p.user_id), Number(p.credits), paymentId, t],
+      });
+    }
 
     // Реферальная награда: пригласивший получает кредиты один раз, за первую покупку приглашённого.
     const reward = referralReward();
@@ -201,11 +230,20 @@ export async function settleByProviderId(providerPaymentId: string): Promise<Set
 
 export type PaymentRow = {
   id: string; packageId: string; credits: number; amountRub: number; status: string; provider: string;
-  providerPaymentId: string | null; createdAt: number;
+  providerPaymentId: string | null; createdAt: number; kind: "credits" | "subscription"; planId: string | null; months: number | null;
+  /** Что куплено, для показа человеку. */
+  title: string;
 };
 
 function toPayment(r: Record<string, unknown>): PaymentRow {
+  const kind = r.kind === "subscription" ? "subscription" : "credits";
+  const planId = r.plan_id == null ? null : String(r.plan_id);
+  const months = r.months == null ? null : Number(r.months);
+  const title = kind === "subscription"
+    ? `Подписка «${(planId && getPlan(planId)?.title) || planId}» на ${months} мес.`
+    : `${Number(r.credits)} ${plural(Number(r.credits), "кредит", "кредита", "кредитов")}`;
   return {
+    kind, planId, months, title,
     id: String(r.id), packageId: String(r.package_id), credits: Number(r.credits), amountRub: Number(r.amount_kop) / 100,
     status: String(r.status), provider: String(r.provider),
     providerPaymentId: r.provider_payment_id == null ? null : String(r.provider_payment_id), createdAt: Number(r.created_at),

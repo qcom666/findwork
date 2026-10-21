@@ -105,6 +105,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <li><Link href="/terms" className="hover:text-ink">Оферта</Link></li>
                 <li><Link href="/refund" className="hover:text-ink">Оплата и возврат</Link></li>
                 <li><Link href="/privacy" className="hover:text-ink">Политика конфиденциальности</Link></li>
+                <li><Link href="/consent" className="hover:text-ink">Согласие на обработку данных</Link></li>
                 <li><Link href="/contacts" className="hover:text-ink">Контакты и реквизиты</Link></li>
               </ul>
             </div>

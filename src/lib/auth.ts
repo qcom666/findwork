@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { appDb } from "./db";
 import { hashPassword, newToken, sha256, verifyPassword } from "./password";
+import { syncSubscriptions } from "./subscriptions";
 import { createUser } from "./users";
 
 const COOKIE = "fw_session";
@@ -36,10 +37,10 @@ export async function startSession(userId: number): Promise<void> {
   });
 }
 
-export async function signUp(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function signUp(email: string, password: string, consentVersion?: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const passHash = await hashPassword(password);
   const ref = (await cookies()).get("fw_ref")?.value ?? null;
-  const r = await createUser(email, passHash, ref);
+  const r = await createUser(email, passHash, ref, consentVersion);
   if (!r.ok) return r;
   await startSession(r.userId);
   return { ok: true };
@@ -75,12 +76,21 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   try {
     const db = await appDb();
     const r = await db.execute({
-      sql: `SELECT u.id, u.email, u.balance FROM sessions s JOIN users u ON u.id = s.user_id
+      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ? AND s.expires_at > ?`,
       args: [sha256(token), now()],
     });
     const row = r.rows[0];
-    return row ? { id: Number(row.id), email: String(row.email), balance: Number(row.balance) } : null;
+    if (!row) return null;
+    let balance = Number(row.balance);
+    // Подписке пришло время начислить очередной месяц: начисляем при заходе пользователя, отдельного планировщика нет.
+    if (row.sub_next_at != null && Number(row.sub_next_at) <= now()) {
+      balance += await syncSubscriptions(Number(row.id)).catch((e) => {
+        console.error("[subscriptions] начисление не удалось", e);
+        return 0;
+      });
+    }
+    return { id: Number(row.id), email: String(row.email), balance };
   } catch {
     return null;
   }

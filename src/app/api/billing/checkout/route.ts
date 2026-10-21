@@ -1,20 +1,25 @@
-import { appBaseUrl, createCheckout, getPackage, paymentsEnabled } from "@/lib/billing";
+import { appBaseUrl, createCheckout, createSubscriptionCheckout, getPackage, paymentsEnabled } from "@/lib/billing";
 import { json, needUser, readJson } from "@/lib/http";
+import { getPeriod, getPlan } from "@/lib/plans";
 import { allow } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
+/** Тело запроса: {package} для разовых кредитов или {plan, months} для подписки. */
 export async function POST(req: Request) {
-  const b = await readJson<{ package?: string }>(req);
+  const b = await readJson<{ package?: string; plan?: string; months?: number }>(req);
   const pkg = b?.package ? getPackage(b.package) : undefined;
-  if (!pkg) return json({ error: "Неизвестный пакет" }, 400);
+  const plan = b?.plan ? getPlan(b.plan) : undefined;
+  if (!pkg && !plan) return json({ error: "Неизвестный тариф" }, 400);
+  if (plan && !getPeriod(Number(b?.months))) return json({ error: "Неизвестный срок подписки" }, 400);
   const auth = await needUser();
   if ("error" in auth) return auth.error;
   if (!paymentsEnabled()) return json({ error: "Оплата пока не настроена" }, 503);
   if (!(await allow(`checkout:${auth.user.id}`, 20, 3600))) return json({ error: "Слишком много попыток оплаты, попробуйте позже" }, 429);
 
   try {
-    const { url } = await createCheckout(auth.user, pkg, appBaseUrl(req));
+    const base = appBaseUrl(req);
+    const { url } = plan ? await createSubscriptionCheckout(auth.user, plan, Number(b?.months), base) : await createCheckout(auth.user, pkg!, base);
     return json({ url });
   } catch (e) {
     console.error("[billing] checkout failed", e);

@@ -129,29 +129,42 @@ const SCHEMA = [
      n INTEGER NOT NULL,
      reset_at INTEGER NOT NULL
    )`,
+  // Подписка оплачивается один раз на months месяцев; кредиты за каждый месяц начисляются по графику (granted: сколько месяцев уже начислено).
+  `CREATE TABLE IF NOT EXISTS subscriptions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     payment_id TEXT NOT NULL UNIQUE,
+     plan_id TEXT NOT NULL,
+     months INTEGER NOT NULL,
+     credits_per_month INTEGER NOT NULL,
+     starts_at INTEGER NOT NULL,
+     ends_at INTEGER NOT NULL,
+     granted INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_subs_user ON subscriptions(user_id, starts_at)`,
 ];
 
 /** Колонки, добавленные позже создания таблицы users. Безопасно запускать повторно и из нескольких процессов сразу. */
 async function migrate(client: Client): Promise<void> {
-  const cols = (await client.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
-  for (const [name, ddl] of [["ref_code", "TEXT"], ["referred_by", "INTEGER"]] as const) {
-    if (cols.includes(name)) continue;
-    try {
-      await client.execute(`ALTER TABLE users ADD COLUMN ${name} ${ddl}`);
-    } catch (e) {
-      if (!/duplicate column/i.test((e as Error).message)) throw e;
+  const addColumns = async (table: string, columns: readonly (readonly [string, string])[]) => {
+    const have = (await client.execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name));
+    for (const [name, ddl] of columns) {
+      if (have.includes(name)) continue;
+      try {
+        await client.execute(`ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
+      } catch (e) {
+        if (!/duplicate column/i.test((e as Error).message)) throw e;
+      }
     }
-  }
-  await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
+  };
 
-  const promoCols = (await client.execute("PRAGMA table_info(promo_codes)")).rows.map((r) => String(r.name));
-  if (!promoCols.includes("revoked")) {
-    try {
-      await client.execute("ALTER TABLE promo_codes ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0");
-    } catch (e) {
-      if (!/duplicate column/i.test((e as Error).message)) throw e;
-    }
-  }
+  // sub_next_at: когда подписке пора начислить следующий месяц (NULL: начислять нечего). consent_*: когда и какую редакцию документов принял пользователь.
+  await addColumns("users", [["ref_code", "TEXT"], ["referred_by", "INTEGER"], ["sub_next_at", "INTEGER"], ["consent_at", "INTEGER"], ["consent_ver", "TEXT"]]);
+  await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
+  await addColumns("promo_codes", [["revoked", "INTEGER NOT NULL DEFAULT 0"]]);
+  // kind: credits (пакет) или subscription (тогда plan_id и months заполнены, а credits: всего кредитов за срок).
+  await addColumns("payments", [["kind", "TEXT NOT NULL DEFAULT 'credits'"], ["plan_id", "TEXT"], ["months", "INTEGER"]]);
 }
 
 export function appDb(): Promise<Client> {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ARTICLES, getArticle, readingMinutes } from "../src/content/articles";
 
-const STATIC = ["/", "/leads", "/my", "/about", "/pricing", "/signup", "/login", "/terms", "/privacy", "/refund", "/contacts", "/blog"];
+const STATIC = ["/", "/leads", "/my", "/about", "/pricing", "/signup", "/login", "/terms", "/privacy", "/refund", "/contacts", "/consent", "/blog"];
 
 function textsOf(a: (typeof ARTICLES)[number]): string[] {
   const out: string[] = [a.description, a.cta.text];
