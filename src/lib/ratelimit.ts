@@ -22,6 +22,16 @@ export async function allow(key: string, limit: number, windowSec = 3600, cost =
   return Number(r.rows[0].n) <= limit;
 }
 
+/**
+ * IP посетителя. Через наш прокси в России (lidomap.ru → сервер в Москве → Vercel) Vercel видит адрес прокси,
+ * поэтому прокси передаёт настоящий адрес в X-Lidomap-Client-IP вместе с общим секретом PROXY_SECRET.
+ * Без верного секрета заголовку не верим: иначе любой мог бы подставить чужой адрес и обойти лимиты.
+ */
 export function clientIp(req: Request): string {
+  const secret = process.env.PROXY_SECRET;
+  if (secret && req.headers.get("x-lidomap-proxy") === secret) {
+    const ip = req.headers.get("x-lidomap-client-ip")?.trim();
+    if (ip) return ip;
+  }
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
 }
