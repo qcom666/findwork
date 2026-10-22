@@ -55,6 +55,7 @@ vercel env add ADMIN_EMAILS production          # ваш e-mail из аккау�
 * **Deployment Protection.** По умолчанию Vercel закрывает деплои входом в аккаунт Vercel. Для публичного сайта и для вебхуков ЮKassa отключите защиту у Production: Project → Settings → Deployment Protection.
 * **Тариф.** Hobby разрешён только для некоммерческого использования. Для приёма платежей нужен Pro.
 * **Домен.** Project → Settings → Domains. После подключения обновите `APP_URL` и адрес вебхука в ЮKassa.
+* **Прокси в России.** Посетители из РФ без VPN до Vercel почти не доходят (соединение обрывается на ~16 КБ), поэтому `lidomap.ru` смотрит на сервер в Москве с nginx, который пересылает запросы на Vercel с Host `lidomap.ru`. Конфиг и установка: `deploy/proxy/lidomap.conf`, `deploy/proxy/setup.sh base|tls`; секрет для настоящего IP посетителя: `scripts/proxy-secret.sh`. Адреса Vercel в конфиге заданы явно: если какой-то перестанет отвечать из Москвы, замените его.
 
 ## 5. Выкатка
 
