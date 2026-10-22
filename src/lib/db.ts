@@ -224,6 +224,8 @@ async function migrate(client: Client): Promise<void> {
   await addColumns("promo_codes", [["revoked", "INTEGER NOT NULL DEFAULT 0"]]);
   // kind: credits (пакет) или subscription (тогда plan_id и months заполнены, а credits: всего кредитов за срок).
   await addColumns("payments", [["kind", "TEXT NOT NULL DEFAULT 'credits'"], ["plan_id", "TEXT"], ["months", "INTEGER"]]);
+  // receipt_url: ссылка на чек из «Мой налог», которую владелец вставляет в админке (самозанятому ЮKassa чеки не выдаёт); её видит покупатель.
+  await addColumns("payments", [["receipt_url", "TEXT"], ["receipt_at", "INTEGER"]]);
 }
 
 export function appDb(): Promise<Client> {

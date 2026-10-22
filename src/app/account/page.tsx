@@ -113,7 +113,10 @@ export default async function Account() {
             {payments.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 <span>{p.title} · {p.amountRub.toLocaleString("ru-RU")} ₽</span>
-                <span className="text-muted">{STATUS[p.status] ?? p.status} · {dt(p.createdAt)}</span>
+                <span className="flex items-center gap-3">
+                  {p.receiptUrl && <a href={p.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Чек</a>}
+                  <span className="text-muted">{STATUS[p.status] ?? p.status} · {dt(p.createdAt)}</span>
+                </span>
               </li>
             ))}
           </ul>

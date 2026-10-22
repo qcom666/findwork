@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/admin", label: "Обзор" },
   { href: "/admin/promo", label: "Промокоды" },
   { href: "/admin/users", label: "Пользователи" },
+  { href: "/admin/receipts", label: "Чеки" },
   { href: "/admin/telegram", label: "Telegram" },
 ];
 

@@ -269,6 +269,8 @@ export type PaymentRow = {
   providerPaymentId: string | null; createdAt: number; kind: "credits" | "subscription"; planId: string | null; months: number | null;
   /** Что куплено, для показа человеку. */
   title: string;
+  /** Чек из «Мой налог», если владелец его уже оформил. */
+  receiptUrl: string | null;
 };
 
 function toPayment(r: Record<string, unknown>): PaymentRow {
@@ -283,6 +285,7 @@ function toPayment(r: Record<string, unknown>): PaymentRow {
     id: String(r.id), packageId: String(r.package_id), credits: Number(r.credits), amountRub: Number(r.amount_kop) / 100,
     status: String(r.status), provider: String(r.provider),
     providerPaymentId: r.provider_payment_id == null ? null : String(r.provider_payment_id), createdAt: Number(r.created_at),
+    receiptUrl: r.receipt_url == null ? null : String(r.receipt_url),
   };
 }
 

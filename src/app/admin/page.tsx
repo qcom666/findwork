@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminGrant } from "@/components/AdminGrant";
 import { AdminNav } from "@/components/AdminNav";
 import { getAdmin } from "@/lib/admin";
 import { getLabels } from "@/lib/search";
 import { getMetrics } from "@/lib/metrics";
+import { listReceipts } from "@/lib/receipts";
 
 export const metadata: Metadata = { title: "Метрики", robots: { index: false, follow: false } };
 
@@ -17,7 +19,7 @@ export default async function Admin() {
   const admin = await getAdmin();
   if (!admin) notFound();
 
-  const [m, labels] = await Promise.all([getMetrics(), getLabels()]);
+  const [m, labels, noReceipt] = await Promise.all([getMetrics(), getLabels(), listReceipts(false, 500)]);
   const conv = m.users.total ? Math.round((m.users.payers / m.users.total) * 1000) / 10 : 0;
 
   return (
@@ -27,6 +29,12 @@ export default async function Admin() {
         <h1 className="text-2xl font-bold tracking-tight">Обзор</h1>
         <p className="text-sm text-muted">Только для владельца. Данные считаются при открытии страницы, тестовые платежи не входят в выручку.</p>
       </div>
+
+      {noReceipt.length > 0 && (
+        <Link href="/admin/receipts" className="block rounded-lg bg-warn-soft px-4 py-3 text-sm font-medium text-warn hover:underline">
+          Оплат без чека: {noReceipt.length}. Оформите чеки в «Мой налог» →
+        </Link>
+      )}
 
       <AdminGrant selfEmail={admin.email} />
 
