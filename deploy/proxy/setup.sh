@@ -8,7 +8,10 @@ cd "$(dirname "$0")"
 case "${1:-}" in
   base)
     apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -yq nginx certbot
+    DEBIAN_FRONTEND=noninteractive apt-get install -yq nginx certbot fail2ban
+    install -m 644 fail2ban/lidomap-scan.filter.conf /etc/fail2ban/filter.d/lidomap-scan.conf
+    install -m 644 fail2ban/lidomap.jail.conf /etc/fail2ban/jail.d/lidomap.conf
+    systemctl enable --now fail2ban && systemctl restart fail2ban
     mkdir -p /var/www/acme /var/cache/nginx/lidomap
     [ -f /etc/nginx/lidomap-secret.conf ] || install -m 600 /dev/null /etc/nginx/lidomap-secret.conf
     rm -f /etc/nginx/sites-enabled/default
