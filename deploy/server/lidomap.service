@@ -1,0 +1,19 @@
+[Unit]
+Description=Lidomap (Next.js)
+After=network.target
+
+[Service]
+User=lidomap
+Group=lidomap
+WorkingDirectory=/srv/lidomap/current
+EnvironmentFile=/etc/lidomap/env
+Environment=NODE_OPTIONS=--max-old-space-size=512
+ExecStart=/usr/local/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

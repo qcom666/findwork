@@ -1,0 +1,10 @@
+[Unit]
+Description=Lidomap: ежедневная копия базы аккаунтов
+
+[Timer]
+# 00:30 UTC = 03:30 по Москве
+OnCalendar=*-*-* 00:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

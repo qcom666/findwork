@@ -1,0 +1,6 @@
+[Unit]
+Description=Lidomap: копия базы аккаунтов
+
+[Service]
+Type=oneshot
+ExecStart=/srv/lidomap/bin/backup.sh
