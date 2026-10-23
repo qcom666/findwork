@@ -38,7 +38,10 @@ export function plural(n: number, one: string, few: string, many: string): strin
 }
 
 export function csvCell(v: string | number | null | undefined): string {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // Ячейку, которая начинается с = + - @ (или табуляции), Excel выполнит как формулу: в названии заведения из открытых
+  // данных может оказаться =HYPERLINK(...). Апостроф делает её текстом (телефон +7… тоже остаётся текстом, а не числом).
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

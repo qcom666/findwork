@@ -94,7 +94,7 @@ export default async function Home() {
                 </Link>
               )}
             </div>
-            <p className="mt-4 text-sm text-muted">Каталог открыт без регистрации{SIGNUP_BONUS > 0 ? `, ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")} в подарок без карты` : ""}. Дальше платите за открытые контакты: кредитами или подпиской без автопродления.</p>
+            <p className="mt-4 text-sm text-muted">Каталог открыт без регистрации{SIGNUP_BONUS > 0 ? `, ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")} в подарок за вход через Telegram` : ""}. Дальше платите за открытые контакты: кредитами или подпиской без автопродления.</p>
           </div>
 
           <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true">
@@ -235,7 +235,7 @@ export default async function Home() {
         <SectionTitle title="Тарифы" sub={`Подписка или разовые кредиты. ${UNLOCK_COST} кредит — одно заведение со всеми инструментами.`} />
         <PricingSwitcher packages={PACKAGES} enabled={paymentsEnabled()} pitchLabel={pitchFeature()} />
         <p className="text-sm text-muted">
-          Кредиты не сгорают. {SIGNUP_BONUS > 0 && `При регистрации дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}. `}
+          Кредиты не сгорают. {SIGNUP_BONUS > 0 && `За вход через Telegram дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}. `}
           <Link href="/pricing" className="text-accent hover:underline">Подробнее о тарифах</Link>
         </p>
       </section>

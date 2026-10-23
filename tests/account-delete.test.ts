@@ -8,7 +8,7 @@ import { deleteAccount, identityHash } from "../src/lib/account-delete";
 import { searchUsers } from "../src/lib/admin";
 import { createSubscriptionCheckout, fulfillPayment } from "../src/lib/billing";
 import { claimLead } from "../src/lib/claims";
-import { SIGNUP_BONUS, getBalance, getLedger, unlockLead } from "../src/lib/credits";
+import { SIGNUP_BONUS, getBalance, getLedger, grantCredits, unlockLead } from "../src/lib/credits";
 import { __resetAppDbForTests } from "../src/lib/db";
 import { getPlan } from "../src/lib/plans";
 import { cleanProfile, createReport } from "../src/lib/reports";
@@ -34,6 +34,7 @@ describe("удаление аккаунта", () => {
     assert.ok(r.ok);
     const u = r.userId;
     await db.execute({ sql: "UPDATE users SET tg_id = 777, tg_username = 'p', display_name = 'Имя' WHERE id = ?", args: [u] });
+    await grantCredits(u, 5, "admin_grant", null);
     await db.execute({ sql: "INSERT INTO sessions(token_hash, user_id, expires_at, created_at) VALUES ('s', ?, 9999999999, 0)", args: [u] });
     await unlockLead(u, "L1");
     await db.execute({ sql: "INSERT INTO lead_notes(user_id, lead_id, status, note, updated_at) VALUES (?, 'L1', 'new', 'секрет', 1)", args: [u] });
@@ -86,7 +87,7 @@ describe("удаление аккаунта", () => {
 
   it("после удаления та же почта и тот же Telegram регистрируются снова, но без приветственных кредитов", async () => {
     const a = (await createUser("again@test.ru", "h")) as { ok: true; userId: number };
-    assert.equal(await getBalance(a.userId), SIGNUP_BONUS);
+    assert.equal(await getBalance(a.userId), 0, "за одну почту подарок не дают");
     assert.ok((await deleteAccount(a.userId)).ok);
     const b = await createUser("Again@Test.ru", "h2");
     assert.ok(b.ok && b.userId !== a.userId, "почта освободилась");
@@ -104,7 +105,7 @@ describe("удаление аккаунта", () => {
   });
 
   it("новый человек получает бонус, а в таблице только необратимые хеши", async () => {
-    const x = await createUser("new@test.ru", "h");
+    const x = await loginOrCreateTelegramUser({ id: 6262, name: "Новый", username: null }, { consentVersion: "1" });
     assert.ok(x.ok);
     assert.equal(await getBalance(x.userId), SIGNUP_BONUS);
     const del = (await createUser("old@test.ru", "h")) as { ok: true; userId: number };

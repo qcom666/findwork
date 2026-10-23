@@ -11,7 +11,7 @@ export function normalizeCode(raw: string): string {
 
 export type RedeemResult =
   | { ok: true; credits: number; balance: number }
-  | { ok: false; reason: "invalid" | "expired" | "exhausted" | "already" | "revoked" };
+  | { ok: false; reason: "invalid" | "expired" | "exhausted" | "already" | "revoked" | "verify" };
 
 export const REDEEM_MESSAGE: Record<string, string> = {
   invalid: "Такого промокода нет",
@@ -19,6 +19,7 @@ export const REDEEM_MESSAGE: Record<string, string> = {
   exhausted: "Промокод уже использован максимальное число раз",
   already: "Вы уже использовали этот промокод",
   revoked: "Промокод отозван",
+  verify: "Этот промокод действует после подтверждения через Telegram: привяжите его в «Аккаунте»",
 };
 
 /** Начисляет кредиты по промокоду. Один человек может использовать код один раз, всё в одной транзакции. */
@@ -28,13 +29,23 @@ export async function redeemPromo(userId: number, raw: string): Promise<RedeemRe
 
   return writeTx<RedeemResult>(async (tx) => {
     const p = (await tx.execute({ sql: "SELECT credits, max_uses, used, expires_at, revoked FROM promo_codes WHERE code = ?", args: [code] })).rows[0];
-    const fail = (reason: "invalid" | "expired" | "exhausted" | "already" | "revoked") => ({ value: { ok: false, reason } as RedeemResult, rollback: true });
+    const fail = (reason: "invalid" | "expired" | "exhausted" | "already" | "revoked" | "verify") => ({ value: { ok: false, reason } as RedeemResult, rollback: true });
     if (!p) return fail("invalid");
     if (Number(p.revoked) === 1) return fail("revoked");
     if (p.expires_at != null && Number(p.expires_at) <= now()) return fail("expired");
     if (p.max_uses != null && Number(p.used) >= Number(p.max_uses)) return fail("exhausted");
     const dup = await tx.execute({ sql: "SELECT 1 FROM promo_redemptions WHERE user_id = ? AND code = ?", args: [userId, code] });
     if (dup.rows.length) return fail("already");
+    // Общий код (на много использований) по одному разу на аккаунт можно было бы фармить пачкой аккаунтов на выдуманные почты.
+    // Поэтому его принимаем только у подтверждённых: Telegram привязан или уже была оплата. Одноразовые коды партнёров работают у всех.
+    if (p.max_uses == null || Number(p.max_uses) > 1) {
+      const v = await tx.execute({
+        sql: `SELECT (SELECT tg_id FROM users WHERE id = ?) IS NOT NULL
+                  OR EXISTS(SELECT 1 FROM payments WHERE user_id = ? AND status = 'succeeded' AND provider = 'yookassa') AS ok`,
+        args: [userId, userId],
+      });
+      if (Number(v.rows[0]?.ok) !== 1) return fail("verify");
+    }
 
     const credits = Number(p.credits);
     const t = now();

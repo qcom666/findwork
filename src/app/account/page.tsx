@@ -7,9 +7,11 @@ import { TelegramLinkBox } from "@/components/TelegramLinkBox";
 import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
 import { listPayments, settlePendingForUser } from "@/lib/billing";
-import { getBalance, getLedger, referralReward } from "@/lib/credits";
+import { getBalance, getLedger, referralReward, SIGNUP_BONUS } from "@/lib/credits";
 import { plural } from "@/lib/format";
 import { getLeadsUnlocked } from "@/lib/search";
+import { appDb } from "@/lib/db";
+import { bonusAvailable } from "@/lib/bonus";
 import { activeClaimCount } from "@/lib/claims";
 import { getEntitlements } from "@/lib/entitlements";
 import { reportQuota } from "@/lib/reports";
@@ -32,7 +34,7 @@ export default async function Account() {
   // Если вебхук ЮKassa не дошёл, платёж подтянется при заходе в аккаунт.
   const settled = await settlePendingForUser(user.id).catch(() => 0);
   const balance = settled ? await getBalance(user.id) : user.balance;
-  const [payments, ledger, ref, subs, ent, claims, quota] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id), getEntitlements(user.id), activeClaimCount(user.id), reportQuota(user.id)]);
+  const [payments, ledger, ref, subs, ent, claims, quota, giftOnLink] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id), getEntitlements(user.id), activeClaimCount(user.id), reportQuota(user.id), appDb().then((db) => bonusAvailable(db, user.id))]);
   const reward = referralReward();
   const inviteLink = `${await siteUrl()}/r/${ref.code}`;
   const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
@@ -84,6 +86,7 @@ export default async function Account() {
         linked={user.tgLinked}
         username={user.tgUsername}
         canUnlink={user.hasPassword}
+        bonus={giftOnLink ? SIGNUP_BONUS : 0}
       />
 
       <section>

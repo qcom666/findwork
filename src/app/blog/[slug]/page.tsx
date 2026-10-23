@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { jsonLd as toJsonLd } from "@/lib/jsonld";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleBody } from "@/components/ArticleBody";
@@ -55,7 +56,7 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-2xl">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(jsonLd) }} />
       <nav className="text-sm text-muted" aria-label="Навигация">
         <Link href="/" className="hover:text-ink">Lidomap</Link> › <Link href="/blog" className="hover:text-ink">Блог</Link>
       </nav>

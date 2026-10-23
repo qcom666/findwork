@@ -45,7 +45,7 @@ const userExists = async (id: number) => (await db.execute({ sql: "SELECT 1 FROM
 describe("привязка Telegram к аккаунту с почтой", () => {
   it("свободный Telegram привязывается, и вход через него ведёт в тот же аккаунт без нового бонуса", async () => {
     const u = await emailUser("a@test.ru");
-    assert.deepEqual(await linkTelegram(u, tg), { ok: true, merged: false });
+    assert.deepEqual(await linkTelegram(u, tg), { ok: true, merged: false, bonus: SIGNUP_BONUS }, "за привязку Telegram подарок");
     const row = (await db.execute({ sql: "SELECT tg_id, tg_username, display_name FROM users WHERE id = ?", args: [u] })).rows[0];
     assert.deepEqual([row.tg_id, row.tg_username, row.display_name], [tg.id, "anna_p", "Анна Петрова"]);
 
@@ -53,6 +53,22 @@ describe("привязка Telegram к аккаунту с почтой", () => 
     assert.deepEqual(login, { ok: true, userId: u, created: false });
     assert.equal(Number((await db.execute("SELECT count(*) AS n FROM users")).rows[0].n), 1, "второго аккаунта нет");
     assert.equal(await getBalance(u), SIGNUP_BONUS);
+  });
+
+  it("подарок за Telegram один: ни повторная привязка, ни другой аккаунт с тем же Telegram его не получат", async () => {
+    const u = await emailUser("a@test.ru");
+    assert.equal(await getBalance(u), 0, "за одну почту подарка нет");
+    await linkTelegram(u, tg);
+    assert.equal(await getBalance(u), SIGNUP_BONUS);
+    assert.deepEqual(await unlinkTelegram(u), { ok: true });
+    const again = await linkTelegram(u, { id: 31337, name: "Другой", username: null });
+    assert.ok(again.ok && again.bonus === 0, "второй Telegram тому же человеку подарок не даёт");
+
+    const v = await emailUser("b@test.ru");
+    const reused = await linkTelegram(v, tg);
+    assert.ok(reused.ok && reused.bonus === 0, "Telegram, за который уже подарили, второй раз не считается");
+    assert.equal(await getBalance(v), 0);
+    assert.equal(Number((await db.execute("SELECT count(*) AS n FROM bonus_claims")).rows[0].n), 1);
   });
 
   it("повтор, другой Telegram и аккаунт, созданный через Telegram, привязку не принимают", async () => {
@@ -112,7 +128,7 @@ describe("привязка Telegram к аккаунту с почтой", () => 
     const mailBefore = await getBalance(mail);
     const soloBefore = await getBalance(solo);
     const r = await linkTelegram(mail, tg, { confirm: true });
-    assert.deepEqual(r, { ok: true, merged: true });
+    assert.deepEqual(r, { ok: true, merged: true, bonus: 0 });
 
     assert.equal(await userExists(solo), false, "отдельного аккаунта нет");
     assert.equal(await getBalance(mail), mailBefore + soloBefore);
@@ -151,7 +167,7 @@ describe("привязка Telegram к аккаунту с почтой", () => 
     await db.execute({ sql: "UPDATE users SET referred_by = ? WHERE id = ?", args: [boss, solo] });
     await db.execute({ sql: "INSERT INTO referral_rewards(referred_id, referrer_id, credits, created_at) VALUES (?, ?, 10, 1)", args: [solo, boss] });
 
-    assert.deepEqual(await linkTelegram(mail, tg, { confirm: true }), { ok: true, merged: true });
+    assert.deepEqual(await linkTelegram(mail, tg, { confirm: true }), { ok: true, merged: true, bonus: 0 });
     assert.equal(Number((await db.execute({ sql: "SELECT referred_by FROM users WHERE id = ?", args: [friend] })).rows[0].referred_by), mail);
     assert.equal(Number((await db.execute({ sql: "SELECT referrer_id FROM referral_rewards WHERE referred_id = ?", args: [friend] })).rows[0].referrer_id), mail);
     assert.equal((await db.execute({ sql: "SELECT count(*) AS n FROM referral_rewards WHERE referred_id = ?", args: [mail] })).rows[0].n, 1);

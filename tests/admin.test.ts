@@ -50,6 +50,7 @@ describe("отзыв промокода", () => {
   it("отозванный код нельзя использовать, уже начисленное остаётся", async () => {
     await createPromo({ code: "GIFT", credits: 10 });
     const a = await user("a@t.ru"), b = await user("b@t.ru");
+    await (await appDb()).execute({ sql: "UPDATE users SET tg_id = id WHERE id IN (?, ?)", args: [a, b] }); // общий код только для подтверждённых
     assert.equal((await redeemPromo(a, "GIFT")).ok, true);
     assert.equal(await revokePromo(" gift "), true);
     assert.deepEqual(await redeemPromo(b, "GIFT"), { ok: false, reason: "revoked" });

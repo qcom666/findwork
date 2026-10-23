@@ -5,7 +5,7 @@ import path from "node:path";
 import { beforeEach, describe, it } from "node:test";
 
 import { fulfillPayment } from "../src/lib/billing";
-import { SIGNUP_BONUS, getBalance, getLedger } from "../src/lib/credits";
+import { getBalance, getLedger } from "../src/lib/credits";
 import { appDb, __resetAppDbForTests } from "../src/lib/db";
 import { createUser, getReferralInfo, newRefCode } from "../src/lib/users";
 
@@ -29,11 +29,11 @@ async function make(email: string, ref?: string | null) {
 const codeOf = async (id: number) => String((await (await appDb()).execute({ sql: "SELECT ref_code FROM users WHERE id = ?", args: [id] })).rows[0].ref_code);
 
 describe("реферальная программа", () => {
-  it("у каждого пользователя свой код, бонус за регистрацию начислен", async () => {
+  it("у каждого пользователя свой код, а за одну почту подарок не начисляется (он за Telegram)", async () => {
     const a = await make("a@t.ru"), b = await make("b@t.ru");
     assert.notEqual(await codeOf(a), await codeOf(b));
     assert.match(await codeOf(a), /^[a-z2-9]{8}$/);
-    assert.equal(await getBalance(a), SIGNUP_BONUS);
+    assert.equal(await getBalance(a), 0);
   });
 
   it("повторный e-mail не создаёт пользователя", async () => {
@@ -58,36 +58,36 @@ describe("реферальная программа", () => {
     const b = await make("b@t.ru", await codeOf(a));
     await pending("p1", b);
     assert.equal(await fulfillPayment("p1"), true);
-    assert.equal(await getBalance(a), SIGNUP_BONUS + 10);
-    assert.equal(await getBalance(b), SIGNUP_BONUS + 20);
+    assert.equal(await getBalance(a), 10);
+    assert.equal(await getBalance(b), 20);
 
     await pending("p2", b);
     await fulfillPayment("p2");
-    assert.equal(await getBalance(a), SIGNUP_BONUS + 10, "за вторую покупку награды нет");
+    assert.equal(await getBalance(a), 10, "за вторую покупку награды нет");
     assert.equal((await getLedger(a)).filter((l) => l.reason === "referral").length, 1);
 
     await fulfillPayment("p1"); // повторная обработка того же платежа
-    assert.equal(await getBalance(a), SIGNUP_BONUS + 10);
+    assert.equal(await getBalance(a), 10);
   });
 
   it("без пригласившего награды нет, а размер награды настраивается и 0 её выключает", async () => {
     const solo = await make("solo@t.ru");
     await pending("p1", solo);
     await fulfillPayment("p1");
-    assert.equal(await getBalance(solo), SIGNUP_BONUS + 20);
+    assert.equal(await getBalance(solo), 20);
 
     process.env.REFERRAL_REWARD_CREDITS = "0";
     const a = await make("a@t.ru");
     const b = await make("b@t.ru", await codeOf(a));
     await pending("p2", b);
     await fulfillPayment("p2");
-    assert.equal(await getBalance(a), SIGNUP_BONUS);
+    assert.equal(await getBalance(a), 0);
 
     process.env.REFERRAL_REWARD_CREDITS = "25";
     const c = await make("c@t.ru", await codeOf(a));
     await pending("p3", c);
     await fulfillPayment("p3");
-    assert.equal(await getBalance(a), SIGNUP_BONUS + 25);
+    assert.equal(await getBalance(a), 25);
   });
 
   it("статистика: приглашено, купили, заработано; код создаётся у старых аккаунтов", async () => {

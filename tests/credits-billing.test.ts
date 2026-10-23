@@ -306,7 +306,8 @@ describe("пароли", () => {
 describe("скрытие контактов", () => {
   it("маски не раскрывают номер и ящик", () => {
     assert.equal(maskPhone("+78432485816"), "+7 (843) •••-••-••");
-    assert.equal(maskEmail("owner@shop.ru"), "•••@shop.ru");
+    assert.equal(maskEmail("owner@shop.ru"), "•••@•••.ru", "свой домен выдал бы сайт заведения");
+    assert.equal(maskEmail("Owner@Mail.ru"), "•••@mail.ru", "общий почтовый сервис ничего не выдаёт");
     assert.equal(maskPhone(null), null);
     assert.deepEqual(socialNames(["https://vk.com/a", "https://www.instagram.com/b", "https://vk.com/c"]), ["ВКонтакте", "Instagram"]);
     assert.ok(!maskPhone("+78432485816")!.includes("2485816"));

@@ -43,7 +43,7 @@ export function AuthForm({ mode, next, bonus, telegramBot = null, telegramHint =
       <h1 className="text-2xl font-semibold tracking-tight">{signup ? "Регистрация" : "Вход"}</h1>
       {signup && bonus > 0 && (
         <p className="mt-2 rounded-lg bg-good-soft px-3 py-2 text-sm text-good">
-          Дарим {bonus} {plural(bonus, "кредит", "кредита", "кредитов")}, чтобы вы попробовали на реальных лидах.
+          Дарим {bonus} {plural(bonus, "кредит", "кредита", "кредитов")} за вход через Telegram, чтобы вы попробовали на реальных лидах: зарегистрируйтесь через бота ниже или привяжите Telegram в «Аккаунте» после регистрации по почте.
         </p>
       )}
       <form onSubmit={submit} className="mt-5 space-y-3 card p-5">

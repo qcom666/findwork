@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { plural } from "@/lib/format";
 import { useState } from "react";
 import { TelegramAuth } from "./TelegramAuth";
 
@@ -8,7 +9,7 @@ import { TelegramAuth } from "./TelegramAuth";
  * Блок «Telegram» в аккаунте. Аккаунт с почтой может привязать Telegram, чтобы входить в один клик и не заводить второй аккаунт;
  * привязанный можно отвязать. Аккаунту, созданному через Telegram, отвязывать нечего: это его единственный вход.
  */
-export function TelegramLinkBox({ bot, hint, linked, username, canUnlink }: { bot: string | null; hint: boolean; linked: boolean; username: string | null; canUnlink: boolean }) {
+export function TelegramLinkBox({ bot, hint, linked, username, canUnlink, bonus = 0 }: { bot: string | null; hint: boolean; linked: boolean; username: string | null; canUnlink: boolean; /** сколько кредитов подарим за привязку (0: уже получены) */ bonus?: number }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -43,6 +44,7 @@ export function TelegramLinkBox({ bot, hint, linked, username, canUnlink }: { bo
       ) : (
         <>
           <p className="text-sm text-muted">
+            {bonus > 0 && <b className="text-good">Привяжите Telegram и получите {bonus} {plural(bonus, "кредит", "кредита", "кредитов")} в подарок. </b>}
             Привяжите Telegram, чтобы входить в один клик. Если вы уже заходили через Telegram отдельно, аккаунты объединятся: кредиты, открытые заведения и платежи окажутся здесь.
           </p>
           <TelegramAuth bot={bot} hint={hint} mode="link" title="Подтвердите вход через Telegram" />

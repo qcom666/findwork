@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { jsonLd as toJsonLd } from "@/lib/jsonld";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LeadRow } from "@/components/LeadRow";
@@ -46,7 +47,7 @@ export default async function CityPage({ params }: Props) {
 
   return (
     <div className="space-y-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(jsonLd) }} />
       <nav className="text-sm text-muted" aria-label="Навигация">
         <Link href="/" className="hover:text-ink">Lidomap</Link> › <Link href="/leads" className="hover:text-ink">Каталог</Link> › {city.name}
       </nav>

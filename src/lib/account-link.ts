@@ -1,4 +1,5 @@
 import type { Transaction } from "@libsql/client";
+import { grantTelegramBonus } from "./bonus";
 import { appDb, writeTx } from "./db";
 import { grantDue } from "./subscriptions";
 import { isTgEmail, type TgUser } from "./telegram";
@@ -86,7 +87,7 @@ export async function mergeAccounts(tx: Transaction, sourceId: number, targetId:
 }
 
 export type LinkResult =
-  | { ok: true; merged: boolean }
+  | { ok: true; merged: boolean; /** приветственные кредиты за привязку Telegram, если их ещё не давали */ bonus: number }
   | { ok: false; reason: "no_user" | "synthetic" | "already" | "other_tg" | "taken" }
   | { ok: false; reason: "needConfirm"; info: MergeInfo };
 
@@ -109,13 +110,13 @@ export async function linkTelegram(userId: number, tg: TgUser, opts: { confirm?:
     if (other && !isTgEmail(String(other.email))) return { value: { ok: false, reason: "taken" }, rollback: true };
     if (!other) {
       await tx.execute({ sql: "UPDATE users SET tg_id = ?, tg_username = ?, display_name = ? WHERE id = ?", args: [tg.id, tg.username, tg.name, userId] });
-      return { value: { ok: true, merged: false } };
+      return { value: { ok: true, merged: false, bonus: await grantTelegramBonus(tx, userId, tg.id) } };
     }
 
     if (!opts.confirm) return { value: { ok: false, reason: "needConfirm", info: await infoOf(tx, Number(other.id)) }, rollback: true };
     await mergeAccounts(tx, Number(other.id), userId);
     await tx.execute({ sql: "UPDATE users SET tg_username = ?, display_name = ? WHERE id = ?", args: [tg.username, tg.name, userId] });
-    return { value: { ok: true, merged: true } };
+    return { value: { ok: true, merged: true, bonus: await grantTelegramBonus(tx, userId, tg.id) } };
   });
 }
 

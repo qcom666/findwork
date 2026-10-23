@@ -191,6 +191,12 @@ const SCHEMA = [
      hash TEXT PRIMARY KEY,
      created_at INTEGER NOT NULL
    )`,
+  // Кому уже выдан приветственный бонус: отпечаток Telegram-аккаунта (sha256, как в deleted_identities). Один бонус на Telegram.
+  `CREATE TABLE IF NOT EXISTS bonus_claims (
+     hash TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
   // След объединения аккаунтов (привязка Telegram к аккаунту с почтой): кого во что влили и что перенесли. Нужен для разбора споров.
   `CREATE TABLE IF NOT EXISTS account_merges (
      id INTEGER PRIMARY KEY AUTOINCREMENT,

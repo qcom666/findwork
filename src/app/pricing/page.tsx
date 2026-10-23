@@ -71,7 +71,7 @@ export default async function Pricing() {
             <p>
               <b>Вы не вошли</b>
               <span className="text-muted">
-                {SIGNUP_BONUS > 0 ? ` — при регистрации дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}, карта не нужна` : " — зарегистрируйтесь, чтобы открывать контакты"}
+                {SIGNUP_BONUS > 0 ? ` — за вход через Telegram дарим ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")}, карта не нужна` : " — зарегистрируйтесь, чтобы открывать контакты"}
               </span>
             </p>
             <Link href="/signup?next=/pricing" className="btn btn-primary btn-sm">Создать аккаунт</Link>

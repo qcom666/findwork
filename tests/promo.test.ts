@@ -9,8 +9,13 @@ import { appDb, __resetAppDbForTests } from "../src/lib/db";
 import { createPromo, listPromos, normalizeCode, redeemPromo } from "../src/lib/promo";
 
 let n = 0;
-async function user(balance = 0): Promise<number> {
-  const r = await (await appDb()).execute({ sql: "INSERT INTO users(email, pass_hash, balance, created_at) VALUES (?, 'x', ?, 0)", args: [`p${++n}@t.ru`, balance] });
+/** Пользователь с привязанным Telegram (подтверждённый). unverified: только почта, как у фермы аккаунтов. */
+async function user(balance = 0, unverified = false): Promise<number> {
+  const i = ++n;
+  const r = await (await appDb()).execute({
+    sql: "INSERT INTO users(email, pass_hash, balance, created_at, tg_id) VALUES (?, 'x', ?, 0, ?)",
+    args: [`p${i}@t.ru`, balance, unverified ? null : 1000 + i],
+  });
   return Number(r.lastInsertRowid);
 }
 
@@ -49,6 +54,23 @@ describe("промокоды", () => {
     for (const bad of ["", "ab", "x".repeat(40), "'; DROP TABLE users; --", "код-по-русски"]) {
       assert.deepEqual(await redeemPromo(u, bad), { ok: false, reason: "invalid" }, bad);
     }
+  });
+
+  it("общий код только для подтверждённых: Telegram или оплата; одноразовый код работает у всех", async () => {
+    await createPromo({ code: "PUBLIC", credits: 5 });
+    await createPromo({ code: "PARTNER", credits: 5, maxUses: 1 });
+    const farm = await user(0, true);
+    assert.deepEqual(await redeemPromo(farm, "PUBLIC"), { ok: false, reason: "verify" });
+    assert.equal(await getBalance(farm), 0);
+    assert.equal((await redeemPromo(farm, "PARTNER")).ok, true, "одноразовый код партнёра фармить нечем");
+
+    const payer = await user(0, true);
+    await (await appDb()).execute({
+      sql: "INSERT INTO payments(id, user_id, package_id, credits, amount_kop, status, provider, created_at) VALUES ('p-ok', ?, 's100', 100, 49000, 'succeeded', 'yookassa', 0)",
+      args: [payer],
+    });
+    assert.equal((await redeemPromo(payer, "PUBLIC")).ok, true, "оплативший подтверждён");
+    assert.equal((await redeemPromo(await user(), "PUBLIC")).ok, true, "с Telegram подтверждён");
   });
 
   it("параллельные использования лимитного кода не превышают лимит", async () => {
