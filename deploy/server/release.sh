@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Сборка и включение выпуска: bash release.sh /srv/lidomap/releases/<время>-<коммит> (код туда кладёт scripts/deploy-server.sh).
-# Собирает от имени lidomap, переключает current, перезапускает службу и ждёт ответа. Не поднялся — возвращает прошлый выпуск.
+# Собирает от имени lidomap (dev-пакеты ставим явно: в /etc/lidomap/env NODE_ENV=production, без них npm пропустит tailwind), переключает current, перезапускает службу и ждёт ответа. Не поднялся — возвращает прошлый выпуск.
 set -euo pipefail
 REL=${1:?путь к выпуску}
 [ -d "$REL" ] || { echo "нет каталога $REL" >&2; exit 1; }
 
 runuser -u lidomap -- bash -c "cd '$REL' && set -a && . /etc/lidomap/env && set +a \
-  && npm ci --no-audit --no-fund --loglevel=error \
+  && npm ci --include=dev --no-audit --no-fund --loglevel=error \
   && NODE_OPTIONS=--max-old-space-size=1536 npm run build"
 
 PREV=$(readlink -f /srv/lidomap/current 2>/dev/null || true)
