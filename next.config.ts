@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-/** Адреса, с которых уходим на основной: прежний адрес Vercel и www. Вебхуки ЮKassa и Telegram остаются на месте, пока в их настройках не сменят адрес. */
+/** Адреса, с которых уходим на основной: прежний адрес Vercel и www. Вебхуки ЮKassa и Telegram и пересылка к Bot API (/api/tg-relay/) остаются на месте. */
 function redirectsToMainHost() {
   const raw = process.env.APP_URL?.trim().replace(/\/+$/, "");
   if (!raw) return [];
@@ -8,7 +8,7 @@ function redirectsToMainHost() {
   try { main = new URL(raw); } catch { return []; }
   const stale = ["findwork-rouge.vercel.app", `www.${main.hostname}`].filter((h) => h !== main.hostname);
   return stale.map((host) => ({
-    source: "/:path((?!api/billing/yookassa|api/telegram/webhook).*)",
+    source: "/:path((?!api/billing/yookassa|api/telegram/webhook|api/tg-relay/).*)",
     has: [{ type: "host" as const, value: host }],
     destination: `${main.origin}/:path`,
     permanent: true,

@@ -16,6 +16,12 @@ fi
 
 DEBIAN_FRONTEND=noninteractive apt-get install -yq sqlite3 >/dev/null
 
+# К Telegram сервер ходит через копию на Vercel (api.telegram.org из России недоступен). Один из адресов Vercel
+# (64.29.17.67) отсюда не отвечает, поэтому имя закрепляем за рабочими адресами: Vercel отдаёт проект с любого своего адреса.
+if ! grep -q 'findwork-rouge.vercel.app' /etc/hosts; then
+  printf '216.198.79.1 findwork-rouge.vercel.app\n216.198.79.65 findwork-rouge.vercel.app\n' >> /etc/hosts
+fi
+
 # Сборке Next.js не хватает 1 ГБ памяти: swap на 2 ГБ.
 if ! swapon --show | grep -q /swapfile; then
   [ -f /swapfile ] || { fallocate -l 2G /swapfile; chmod 600 /swapfile; mkswap /swapfile >/dev/null; }

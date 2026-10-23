@@ -8,7 +8,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 
 import { linkTelegram } from "../src/lib/account-link";
 import { __resetAppDbForTests } from "../src/lib/db";
-import { __resetWebhookCheck, botLink, checkWebhookSecret, ensureWebhook, tgApi, webhookSecret } from "../src/lib/telegram-bot";
+import { __resetWebhookCheck, botLink, checkWebhookSecret, ensureWebhook, relayAllowed, tgApi, webhookSecret } from "../src/lib/telegram-bot";
 import { createLoginRequest, handleBotUpdate, pollLoginRequest, uaLabel } from "../src/lib/tg-login";
 import { createUser, loginOrCreateTelegramUser } from "../src/lib/users";
 
@@ -92,6 +92,27 @@ describe("Bot API и вебхук", () => {
     failApi = true;
     await assert.rejects(ensureWebhook("https://findwork.example"), /boom/);
     __resetWebhookCheck();
+  });
+
+  it("TELEGRAM_WEBHOOK_BASE направляет вебхук на адрес, который видит Telegram", async () => {
+    __resetWebhookCheck();
+    process.env.TELEGRAM_WEBHOOK_BASE = "https://backup.example/";
+    try {
+      await ensureWebhook("https://lidomap.example");
+      assert.equal(sent("setWebhook")[0].body.url, "https://backup.example/api/telegram/webhook");
+    } finally {
+      delete process.env.TELEGRAM_WEBHOOK_BASE;
+      __resetWebhookCheck();
+    }
+  });
+
+  it("пересылка к Bot API пускает только нашего бота и обычные методы", () => {
+    const own = "777000:AAEexampleTokenPart_1234567";
+    assert.equal(relayAllowed("bot777000:AAEreissuedTokenPart_99999", "sendMessage", own), true, "перевыпущенный токен того же бота");
+    assert.equal(relayAllowed("bot123456:AAEexampleTokenPart_1234567", "sendMessage", own), false, "чужой бот");
+    assert.equal(relayAllowed("bot777000:short", "sendMessage", own), false);
+    assert.equal(relayAllowed("bot777000:AAEexampleTokenPart_1234567", "../x", own), false);
+    assert.equal(relayAllowed("bot777000:AAEexampleTokenPart_1234567", "getMe", ""), false, "без своего токена пересылка выключена");
   });
 
   it("браузер и система в вопросе боту", () => {
