@@ -15,6 +15,8 @@ case "${1:-}" in
     mkdir -p /var/www/acme /var/cache/nginx/lidomap
     [ -f /etc/nginx/lidomap-secret.conf ] || install -m 600 /dev/null /etc/nginx/lidomap-secret.conf
     rm -f /etc/nginx/sites-enabled/default
+    # Версию nginx в ответах не показываем (в Ubuntu по умолчанию server_tokens build).
+    sed -i -E 's/^(\s*)server_tokens [a-z]+;/\1server_tokens off;/' /etc/nginx/nginx.conf
     cat > /etc/nginx/sites-enabled/lidomap.conf <<'EOF'
 server {
     listen 80 default_server;
