@@ -115,6 +115,21 @@ body::before {
   z-index: -1;
 }
 
+/* Радар на первом экране главной (components/RadarBackground.tsx): высоту задаёт скрипт, к низу растворяется в фоне */
+.radar-bg {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 100%; /* у холста своя ширина из атрибута width: без этого он раздувает страницу вбок */
+  height: 760px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 280px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 280px), transparent);
+}
+.radar-bg[data-ready] { opacity: 1; }
+
 ::selection {
   background: var(--accent-soft);
   color: var(--ink);

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PricingSwitcher } from "@/components/PricingSwitcher";
+import { RadarBackground } from "@/components/RadarBackground";
 import { aiPitches, pitchFeature } from "@/lib/ai";
 import { RoiCalculator } from "@/components/RoiCalculator";
 import { ARTICLES, readingMinutes } from "@/content/articles";
@@ -74,6 +75,7 @@ export default async function Home() {
   return (
     <div className="space-y-20 pb-8">
       <section className="pb-4 pt-8 sm:pt-14">
+        <RadarBackground />
         <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-muted">
@@ -97,7 +99,7 @@ export default async function Home() {
             <p className="mt-4 text-sm text-muted">Каталог открыт без регистрации{SIGNUP_BONUS > 0 ? `, ${SIGNUP_BONUS} ${plural(SIGNUP_BONUS, "кредит", "кредита", "кредитов")} в подарок за вход через Telegram` : ""}. Дальше платите за открытые контакты: кредитами или подпиской без автопродления.</p>
           </div>
 
-          <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true">
+          <div className="relative mx-auto w-full max-w-sm pb-4 sm:pb-28 lg:max-w-none" aria-hidden="true" data-radar-center>
             <div className="card p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
