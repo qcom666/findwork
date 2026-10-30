@@ -77,6 +77,7 @@ function start(canvas: HTMLCanvasElement, section: HTMLElement, ctx: CanvasRende
   }
 
   function draw(t: number) {
+    if (!base.width || !base.height) return; // ещё нет размеров (вкладка скрыта, вёрстка не готова): drawImage с пустым холстом бросает
     const a = still.matches ? -0.7 : ((t / 1000) * OMEGA) % TAU;
     const R = RADAR_RADIUS * scale;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -146,6 +147,7 @@ function start(canvas: HTMLCanvasElement, section: HTMLElement, ctx: CanvasRende
     w = canvas.clientWidth;
     h = Math.round(box.bottom - host.top + TAIL);
     canvas.style.height = `${h}px`;
+    if (w <= 0 || h <= 0) return; // дорисует ResizeObserver, когда у блока появится ширина
     // В две колонки (lg) центр под карточкой справа; в одну карточка уходит вниз, и радар встаёт в правый верх первого экрана
     const wide = w >= 1024;
     cx = wide ? anchor.left + anchor.width / 2 - host.left : w * 0.8;
@@ -219,7 +221,12 @@ export function RadarBackground() {
     const canvas = ref.current;
     const section = canvas?.parentElement;
     const ctx = canvas?.getContext("2d");
-    if (canvas && section && ctx) return start(canvas, section, ctx);
+    if (!canvas || !section || !ctx) return;
+    try {
+      return start(canvas, section, ctx);
+    } catch {
+      // Фон декоративный: что бы с ним ни случилось, страница должна открыться
+    }
   }, []);
 
   return <canvas ref={ref} className="radar-bg" aria-hidden="true" />;
