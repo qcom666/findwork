@@ -290,6 +290,8 @@ def main():
         merged, added = merge_osm(ov, osm)
         print(f"  склеено с Overture: {merged}, новых: {len(added)}", flush=True)
         ov += added
+        # У новых из OSM по всей России (osm_pbf.py) город бывает не указан: тот же поиск ближайшего города.
+        print(f"  город определён по координатам ещё у {fill_missing_cities(ov)}", flush=True)
     rows = finalize(ov)
     rel = (DATA / "overture_release.txt").read_text().strip() if (DATA / "overture_release.txt").exists() else "?"
     meta = {

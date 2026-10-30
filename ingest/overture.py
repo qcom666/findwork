@@ -61,7 +61,11 @@ def extract(release: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", help="версия релиза Overture, по умолчанию самая свежая")
+    ap.add_argument("--print-latest", action="store_true", help="только напечатать самый свежий релиз (для кэша сборки)")
     args = ap.parse_args()
+    if args.print_latest:
+        print(releases()[0])
+        return
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     candidates = [args.release] if args.release else releases()

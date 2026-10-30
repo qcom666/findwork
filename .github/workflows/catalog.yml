@@ -1,0 +1,84 @@
+name: Каталог
+
+# Каждые сутки собирает каталог заново: OSM из свежей выгрузки Geofabrik (обновляется ежедневно) и Overture
+# (новый выпуск раз в месяц, между выпусками берётся из кэша). Готовую базу кладёт на сервер, где её проверяет
+# и включает deploy/server/import-leads.sh. Без секретов доставки (scripts/setup-catalog-deploy.sh) только собирает.
+on:
+  schedule:
+    - cron: "30 0 * * *" # 03:30 по Москве
+  workflow_dispatch:
+
+concurrency: catalog
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CATALOG_SSH_KEY: ${{ secrets.CATALOG_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ingest/requirements.txt
+
+      - name: Инструменты
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq osmium-tool zstd sqlite3
+          pip install -q -r ingest/requirements.txt
+
+      - name: Свежий выпуск Overture
+        id: overture
+        run: echo "release=$(python ingest/overture.py --print-latest)" >> "$GITHUB_OUTPUT"
+
+      - name: Overture из кэша
+        id: overture-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/overture_ru.parquet
+            data/overture_release.txt
+          key: overture-${{ steps.overture.outputs.release }}
+
+      - name: Overture (новый выпуск)
+        if: steps.overture-cache.outputs.cache-hit != 'true'
+        run: python ingest/overture.py --release "${{ steps.overture.outputs.release }}"
+
+      - name: OpenStreetMap по всей России
+        run: python ingest/osm_pbf.py
+
+      - name: Сборка базы
+        run: python ingest/build_db.py
+
+      - name: Проверка
+        run: |
+          sqlite3 data/leads.db "PRAGMA integrity_check" | grep -qx ok
+          sqlite3 data/leads.db "SELECT key, value FROM meta"
+          n=$(sqlite3 data/leads.db "SELECT count(*) FROM places")
+          echo "заведений: $n"
+          [ "$n" -gt 300000 ]
+
+      - name: Сжатие
+        run: zstd -q -T0 -10 data/leads.db -o leads.db.zst && ls -lh leads.db.zst
+
+      - name: Копия сборки (3 дня)
+        uses: actions/upload-artifact@v4
+        with:
+          name: leads-db
+          path: leads.db.zst
+          retention-days: 3
+
+      - name: Доставка на сервер
+        if: env.CATALOG_SSH_KEY != ''
+        env:
+          KNOWN_HOSTS: ${{ secrets.CATALOG_KNOWN_HOSTS }}
+          HOST: ${{ vars.CATALOG_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CATALOG_SSH_KEY" > ~/.ssh/catalog && chmod 600 ~/.ssh/catalog
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/catalog -o StrictHostKeyChecking=yes -o BatchMode=yes "$HOST" < leads.db.zst
