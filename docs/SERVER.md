@@ -10,13 +10,19 @@
 
 ```bash
 bash scripts/deploy-server.sh          # код последнего коммита: сборка на сервере ~2 минуты, затем перезапуск
-bash scripts/deploy-server.sh leads    # новый каталог data/leads.db после пересборки (ingest/)
+bash scripts/deploy-server.sh leads    # залить каталог вручную (обычно не нужно: он обновляется сам, см. ниже)
 bash scripts/deploy-server.sh setup    # обновить службу, сборку и бэкап из deploy/server/
 ```
 
 Если новый выпуск не ответил за минуту, `release.sh` сам возвращает прошлый. Хранятся три последних выпуска в `/srv/lidomap/releases`; откат вручную: `ln -sfn <выпуск> /srv/lidomap/current && systemctl restart lidomap`.
 
 Пуш в `main` по-прежнему выкладывает и копию на Vercel (см. ниже), на сервер код попадает только этим скриптом.
+
+## Каталог обновляется сам
+
+Каждые сутки в 03:30 по Москве GitHub Actions (`.github/workflows/catalog.yml`) собирает каталог заново: OpenStreetMap по всей России из свежей выгрузки Geofabrik (`ingest/osm_pbf.py`, обновляется ежедневно) и Overture (новый выпуск раз в месяц, между выпусками из кэша), склеивает их (`ingest/build_db.py`) и отправляет базу на сервер. Там `/srv/lidomap/bin/import-leads.sh` принимает её только целой и не меньше 85% прежней, переносит заведения, которые кто-то уже открыл (купленные контакты не пропадают), перезапускает сайт на пару секунд и при сбое возвращает прежнюю базу (`leads.db.prev`). Итог каждого приёма: `journalctl -t lidomap-import`.
+
+Ключ доставки создаёт владелец один раз: `bash scripts/setup-catalog-deploy.sh` (секреты `CATALOG_SSH_KEY`, `CATALOG_KNOWN_HOSTS`, переменная `CATALOG_HOST`). На сервере этот ключ ограничен приёмом базы. Запустить сборку вне расписания: Actions → «Каталог» → Run workflow или `gh workflow run catalog.yml`. Последние три дня сборок лежат в артефактах запусков.
 
 ## Бэкапы
 
