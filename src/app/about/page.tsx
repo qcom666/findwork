@@ -11,9 +11,13 @@ export default function About() {
           Только открытые базы с разрешением на коммерческое использование. Яндекс Карты и 2ГИС мы не парсим: условия Яндекса запрещают хранить и перепродавать данные, а разрешение 2ГИС мы подтвердить не смогли.
         </p>
         <ul className="list-disc space-y-1 pl-5 text-muted">
-          <li>Overture Maps Places: лицензии CDLA-Permissive-2.0, CC0 и Apache-2.0.</li>
-          <li>OpenStreetMap через Overpass: © участники OpenStreetMap, лицензия ODbL.</li>
+          <li>Overture Maps Places: лицензии CDLA-Permissive-2.0, CC0 и Apache-2.0. Новый выпуск выходит раз в месяц.</li>
+          <li>OpenStreetMap по всей России (выгрузка Geofabrik): © участники OpenStreetMap, лицензия ODbL.</li>
         </ul>
+        <p className="text-muted">
+          Каталог пересобирается каждую ночь: правки OpenStreetMap попадают в него на следующий день, новый выпуск Overture в день
+          выхода. Пункты выдачи маркетплейсов и государственные учреждения мы не включаем: сайт им не продать.
+        </p>
       </section>
 
       <section className="space-y-2">
