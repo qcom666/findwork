@@ -16,7 +16,7 @@ import duckdb
 from rapidfuzz import fuzz
 
 from common import (SERVICES, classify_url, clean_url, lead_score, lead_services, norm_name, norm_phone, ru_city)
-from niches import NICHES, niche_for_osm, niche_for_overture
+from niches import NICHES, is_public_body, niche_for_osm, niche_for_overture
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -71,6 +71,8 @@ def load_overture():
             break
         for row in chunk:
             r = dict(zip(cols, row))
+            if is_public_body(r["name"]):
+                continue
             recs.append(
                 dict(
                     id=r["id"], name=r["name"].strip(), niche=r["niche"], category=r["category"],
@@ -93,7 +95,7 @@ def load_osm():
     for row in cur.fetchall():
         r = dict(zip(cols, row))
         niche = niche_for_osm(r["osm_key"])
-        if not niche:
+        if not niche or is_public_body(r["name"]):
             continue
         socials = [r.get(k) for k in ("vk", "instagram", "telegram", "facebook")]
         recs.append(
