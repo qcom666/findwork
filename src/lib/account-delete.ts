@@ -30,7 +30,8 @@ export async function deleteAccount(userId: number): Promise<DeleteResult> {
     const u = (await tx.execute({ sql: "SELECT email, balance, tg_id, deleted_at FROM users WHERE id = ?", args: [userId] })).rows[0];
     if (!u || u.deleted_at != null) return { value: { ok: false, reason: "not_found" }, rollback: true };
     if (isAdminEmail(String(u.email))) return { value: { ok: false, reason: "admin" }, rollback: true };
-    const active = Number((await tx.execute({ sql: "SELECT count(*) AS n FROM subscriptions WHERE user_id = ? AND ends_at > ?", args: [userId, t] })).rows[0].n);
+    // Подаренная из админки подписка (payment_id admin:…) удалению не мешает: возвращать за неё нечего
+    const active = Number((await tx.execute({ sql: "SELECT count(*) AS n FROM subscriptions WHERE user_id = ? AND ends_at > ? AND payment_id NOT LIKE 'admin:%'", args: [userId, t] })).rows[0].n);
     if (active > 0) return { value: { ok: false, reason: "subscription" }, rollback: true };
 
     for (const h of identityHashes(String(u.email), u.tg_id == null ? null : Number(u.tg_id))) {

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminGiftSubscription } from "@/components/AdminGiftSubscription";
 import { AdminGrant } from "@/components/AdminGrant";
 import { AdminNav } from "@/components/AdminNav";
+import { AdminRevokeGift } from "@/components/AdminRevokeGift";
 import { AdminUserCredits } from "@/components/AdminUserCredits";
 import { AdminUserModeration } from "@/components/AdminUserModeration";
 import { getAdmin, searchUsers } from "@/lib/admin";
@@ -24,10 +26,11 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
       <AdminNav />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Пользователи</h1>
-        <p className="text-sm text-muted">Последние регистрации или поиск по e-mail, имени или @username. Кредиты можно начислить, списать или забрать все; заблокированный не может войти и пользоваться сайтом.</p>
+        <p className="text-sm text-muted">Последние регистрации или поиск по e-mail, имени или @username. Кредиты можно начислить, списать или забрать все, подписку — подарить; заблокированный не может войти и пользоваться сайтом.</p>
       </div>
 
       <AdminGrant selfEmail={admin.email} />
+      <AdminGiftSubscription selfEmail={admin.email} />
 
       <form className="flex max-w-md gap-2" role="search">
         <input name="q" defaultValue={q} placeholder="E-mail, имя или @username" className="field" aria-label="Поиск пользователя" />
@@ -51,6 +54,12 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                 баланс <b className="text-ink">{u.balance}</b> · открыто {u.unlocks}{u.paidRub > 0 ? ` · оплатил ${u.paidRub.toLocaleString("ru-RU")} ₽` : ""}
               </span>
             </div>
+            {u.sub && (
+              <p className="text-xs text-muted">
+                Подписка <b className="text-ink">«{u.sub.title}»</b> до {dt(u.sub.until)}{u.sub.gift && " · есть подаренная"}
+                {u.sub.gift && <AdminRevokeGift userId={u.id} />}
+              </p>
+            )}
             <AdminUserCredits userId={u.id} />
             <AdminUserModeration userId={u.id} balance={u.balance} banned={u.banned} isAdmin={u.isAdmin} />
           </li>

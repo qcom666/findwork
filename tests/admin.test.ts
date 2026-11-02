@@ -135,3 +135,83 @@ describe("начисление по e-mail", () => {
     assert.equal(await getBalance(u), 1);
   });
 });
+
+describe("подписка в подарок", () => {
+  it("работает как оплаченная: первый месяц кредитов сразу, права тарифа, по e-mail, @username и номеру", async () => {
+    const { giftSubscription } = await import("../src/lib/admin");
+    const { getEntitlements } = await import("../src/lib/entitlements");
+    const { getSubscriptions } = await import("../src/lib/subscriptions");
+    const { getPlan } = await import("../src/lib/plans");
+    const studio = getPlan("studio")!;
+    const a = await user("owner@t.ru", 2);
+    const r = await giftSubscription(" Owner@T.ru ", "studio", 3);
+    assert.ok(r.ok);
+    assert.equal(r.balance, 2 + studio.creditsPerMonth);
+    assert.equal((await getEntitlements(a)).planId, "studio");
+    const [s] = await getSubscriptions(a);
+    assert.deepEqual([s.months, s.granted, s.creditsPerMonth], [3, 1, studio.creditsPerMonth]);
+    assert.equal((await getLedger(a))[0].reason, "subscription");
+
+    const b = await user("b@t.ru");
+    await (await appDb()).execute({ sql: "UPDATE users SET tg_username = 'Anna_P' WHERE id = ?", args: [b] });
+    assert.ok((await giftSubscription("@anna_p", "freelance", 1)).ok);
+    assert.ok((await giftSubscription(`№${b}`, "freelance", 1)).ok);
+    assert.equal((await getSubscriptions(b)).length, 2); // второй подарок встал в очередь за первым
+    assert.equal(await getBalance(b), getPlan("freelance")!.creditsPerMonth);
+  });
+
+  it("отклоняет неизвестный тариф, срок и пользователя, ничего не создав", async () => {
+    const { giftSubscription } = await import("../src/lib/admin");
+    const a = await user("a@t.ru");
+    for (const [plan, m] of [["vip", 1], ["studio", 0], ["studio", 25], ["studio", 1.5]] as const) {
+      assert.equal((await giftSubscription("a@t.ru", plan, m)).ok, false, `${plan} ${m}`);
+    }
+    assert.equal((await giftSubscription("nobody@t.ru", "studio", 1)).ok, false);
+    assert.equal((await giftSubscription("№999", "studio", 1)).ok, false);
+    const n = (await (await appDb()).execute("SELECT count(*) AS n FROM subscriptions")).rows[0].n;
+    assert.equal(Number(n), 0);
+    assert.equal(await getBalance(a), 0);
+  });
+
+  it("видна в списке пользователей", async () => {
+    const { giftSubscription } = await import("../src/lib/admin");
+    await user("a@t.ru"); await user("b@t.ru");
+    await giftSubscription("a@t.ru", "agency", 1);
+    const rows = await searchUsers("");
+    assert.equal(rows.find((u) => u.email === "b@t.ru")!.sub, null);
+    const sub = rows.find((u) => u.email === "a@t.ru")!.sub!;
+    assert.deepEqual([sub.title, sub.gift], ["Агентство", true]);
+    assert.ok(sub.until > Date.now() / 1000);
+  });
+
+  it("снимается: права пропадают, следующие месяцы не придут, начисленное остаётся, оплаченную не трогает", async () => {
+    const { giftSubscription, revokeGifts } = await import("../src/lib/admin");
+    const { getEntitlements } = await import("../src/lib/entitlements");
+    const { getSubscriptions, syncSubscriptions } = await import("../src/lib/subscriptions");
+    const a = await user("a@t.ru");
+    await giftSubscription("a@t.ru", "studio", 3);
+    await giftSubscription("a@t.ru", "studio", 1); // в очереди
+    const balance = await getBalance(a);
+    assert.deepEqual(await revokeGifts(a), { ok: true, revoked: 2 });
+    assert.equal((await getEntitlements(a)).planId, null);
+    assert.deepEqual(await getSubscriptions(a), []);
+    assert.equal(await syncSubscriptions(a), 0);
+    assert.equal(await getBalance(a), balance);
+    assert.equal((await revokeGifts(a)).ok, false);
+
+    const db = await appDb();
+    await db.execute({ sql: "INSERT INTO subscriptions(user_id, payment_id, plan_id, months, credits_per_month, starts_at, ends_at, granted, created_at) VALUES (?, 'pay1', 'freelance', 1, 400, 0, 9999999999, 1, 0)", args: [a] });
+    assert.equal((await revokeGifts(a)).ok, false);
+    assert.equal((await getEntitlements(a)).planId, "freelance");
+  });
+
+  it("подаренная подписка не мешает удалить аккаунт, оплаченная мешает", async () => {
+    const { giftSubscription } = await import("../src/lib/admin");
+    const { deleteAccount } = await import("../src/lib/account-delete");
+    const a = await user("a@t.ru"), b = await user("b@t.ru");
+    await giftSubscription("a@t.ru", "studio", 1);
+    assert.equal((await deleteAccount(a)).ok, true);
+    await (await appDb()).execute({ sql: "INSERT INTO subscriptions(user_id, payment_id, plan_id, months, credits_per_month, starts_at, ends_at, granted, created_at) VALUES (?, 'pay2', 'studio', 1, 1500, 0, 9999999999, 1, 0)", args: [b] });
+    assert.deepEqual(await deleteAccount(b), { ok: false, reason: "subscription" });
+  });
+});
