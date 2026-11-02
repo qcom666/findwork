@@ -72,8 +72,8 @@ export default async function AdminActivity({ searchParams }: { searchParams: Pr
               </p>
             </div>
             <div className="flex gap-2 text-sm">
-              <Link href={`/admin/users?q=${encodeURIComponent(profile.telegram ? profile.user : profile.email)}`} className="btn btn-ghost btn-sm">В пользователях</Link>
-              <Link href={href({ kind, mine })} className="btn btn-ghost btn-sm">Вся активность</Link>
+              <Link prefetch={false} href={`/admin/users?q=${encodeURIComponent(profile.telegram ? profile.user : profile.email)}`} className="btn btn-ghost btn-sm">В пользователях</Link>
+              <Link prefetch={false} href={href({ kind, mine })} className="btn btn-ghost btn-sm">Вся активность</Link>
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -101,7 +101,7 @@ export default async function AdminActivity({ searchParams }: { searchParams: Pr
             <ul className="card divide-y divide-line text-sm">
               {summary.top.map((t) => (
                 <li key={t.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-                  <Link href={href({ user: t.userId })} className="min-w-0 break-all font-medium hover:underline">{t.user}</Link>
+                  <Link prefetch={false} href={href({ user: t.userId })} className="min-w-0 break-all font-medium hover:underline">{t.user}</Link>
                   <span className="text-muted">действий: <b className="text-ink">{t.events}</b>{t.lastSeenAt ? ` · последний заход ${ago(t.lastSeenAt)}` : ""}</span>
                 </li>
               ))}
@@ -112,12 +112,12 @@ export default async function AdminActivity({ searchParams }: { searchParams: Pr
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link href={href({ ...q, kind: undefined })} className="chip" aria-current={!kind ? "true" : undefined}>Всё</Link>
+          <Link prefetch={false} href={href({ ...q, kind: undefined })} className="chip" aria-current={!kind ? "true" : undefined}>Всё</Link>
           {KINDS.map((k) => (
-            <Link key={k} href={href({ ...q, kind: k })} className="chip" aria-current={kind === k ? "true" : undefined}>{KIND_LABEL[k]}</Link>
+            <Link prefetch={false} key={k} href={href({ ...q, kind: k })} className="chip" aria-current={kind === k ? "true" : undefined}>{KIND_LABEL[k]}</Link>
           ))}
           {user == null && (
-            <Link href={href({ ...q, mine: !mine })} className="ml-auto text-xs text-muted hover:underline">{mine ? "Скрыть мои аккаунты" : "Показать и мои аккаунты"}</Link>
+            <Link prefetch={false} href={href({ ...q, mine: !mine })} className="ml-auto text-xs text-muted hover:underline">{mine ? "Скрыть мои аккаунты" : "Показать и мои аккаунты"}</Link>
           )}
         </div>
 
@@ -126,18 +126,18 @@ export default async function AdminActivity({ searchParams }: { searchParams: Pr
           {events.map((e, i) => (
             <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
               <time className="w-28 shrink-0 text-xs text-muted tabular-nums" title={full(e.at)}>{ago(e.at)}</time>
-              {user == null && <Link href={href({ user: e.userId })} className="min-w-0 break-all font-medium hover:underline">{e.user}</Link>}
+              {user == null && <Link prefetch={false} href={href({ user: e.userId })} className="min-w-0 break-all font-medium hover:underline">{e.user}</Link>}
               <span className="min-w-0">
                 {e.text}
-                {e.leadId && <> · <Link href={`/lead/${e.leadId}`} className="text-accent hover:underline">{e.leadName ?? "заведение"}</Link></>}
+                {e.leadId && <> · <Link prefetch={false} href={`/lead/${e.leadId}`} className="text-accent hover:underline">{e.leadName ?? "заведение"}</Link></>}
               </span>
             </li>
           ))}
         </ul>
         {(before != null || events.length === LIMIT) && (
           <div className="flex gap-3 text-sm">
-            {before != null && <Link href={href(q)} className="btn btn-ghost btn-sm">К новым</Link>}
-            {events.length === LIMIT && <Link href={href({ ...q, before: events[events.length - 1].at })} className="btn btn-ghost btn-sm">Показать раньше</Link>}
+            {before != null && <Link prefetch={false} href={href(q)} className="btn btn-ghost btn-sm">К новым</Link>}
+            {events.length === LIMIT && <Link prefetch={false} href={href({ ...q, before: events[events.length - 1].at })} className="btn btn-ghost btn-sm">Показать раньше</Link>}
           </div>
         )}
       </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PLANS } from "@/lib/plans";
 
 const TERMS = [1, 3, 6, 12];
@@ -15,9 +15,13 @@ export function AdminGiftSubscription({ selfEmail }: { selfEmail: string }) {
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const sending = useRef(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // Кнопка гаснет только после перерисовки: быстрые клики успевали выдать несколько подписок подряд в очередь
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true); setMsg(null);
     try {
       const res = await fetch("/api/admin/users/subscription", {
@@ -32,6 +36,7 @@ export function AdminGiftSubscription({ selfEmail }: { selfEmail: string }) {
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }

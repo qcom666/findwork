@@ -37,7 +37,7 @@ export default async function AdminSubscriptions() {
           {subs.map((s, i) => (
             <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
               <span className="min-w-0 break-all">
-                <Link href={`/admin/activity?user=${s.userId}`} className="font-medium hover:underline">{s.user}</Link>
+                <Link prefetch={false} href={`/admin/activity?user=${s.userId}`} className="font-medium hover:underline">{s.user}</Link>
                 {" · "}<b>«{s.title}»</b> на {s.months} мес.
                 {s.gift ? <span className="ml-1.5 rounded-md bg-accent-soft px-1.5 py-0.5 text-xs font-semibold text-accent">подарок</span> : <span className="ml-1.5 text-xs text-muted">оплачена</span>}
                 {s.startsAt > t && <span className="ml-1.5 text-xs text-warn">в очереди</span>}

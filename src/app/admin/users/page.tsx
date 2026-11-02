@@ -39,8 +39,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
         <button className="btn btn-ghost">Найти</button>
       </form>
       <div className="flex gap-2 text-sm">
-        <Link href="/admin/users" className="chip" aria-current={!onlyBanned ? "true" : undefined}>Все</Link>
-        <Link href="/admin/users?banned=1" className="chip" aria-current={onlyBanned ? "true" : undefined}>Заблокированные</Link>
+        <Link prefetch={false} href="/admin/users" className="chip" aria-current={!onlyBanned ? "true" : undefined}>Все</Link>
+        <Link prefetch={false} href="/admin/users?banned=1" className="chip" aria-current={onlyBanned ? "true" : undefined}>Заблокированные</Link>
       </div>
 
       <ul className="card divide-y divide-line text-sm">
@@ -49,7 +49,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           <li key={u.id} className="space-y-2 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="min-w-0 break-all"><b>{u.label}</b> <span className="text-muted">№{u.id} · с {dt(u.createdAt)}{u.lastSeenAt ? ` · заход ${ago(u.lastSeenAt)}` : ""} · </span>
-                <Link href={`/admin/activity?user=${u.id}`} className="text-accent hover:underline">активность</Link>
+                <Link prefetch={false} href={`/admin/activity?user=${u.id}`} className="text-accent hover:underline">активность</Link>
                 {u.banned && <span className="ml-2 rounded-md bg-bad-soft px-1.5 py-0.5 text-xs font-semibold text-bad" title={u.banReason ?? undefined}>заблокирован{u.banReason ? `: ${u.banReason}` : ""}</span>}
               </span>
               <span className="text-muted">

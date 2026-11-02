@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /** Быстрое начисление кредитов по e-mail или @username из Telegram. Кнопка «Себе» подставляет почту владельца. */
 export function AdminGrant({ selfEmail }: { selfEmail: string }) {
@@ -11,9 +11,12 @@ export function AdminGrant({ selfEmail }: { selfEmail: string }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const sending = useRef(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (sending.current) return; // двойной клик не должен начислить дважды
+    sending.current = true;
     setBusy(true); setMsg(null);
     try {
       const res = await fetch("/api/admin/users/credits", {
@@ -29,6 +32,7 @@ export function AdminGrant({ selfEmail }: { selfEmail: string }) {
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
