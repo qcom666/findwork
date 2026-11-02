@@ -93,7 +93,7 @@ export function isAdminEmail(email: string | undefined | null): boolean {
 }
 
 /** Идентификаторы аккаунтов владельца по ADMIN_EMAILS. Только целые числа из базы, поэтому их безопасно вставлять в запрос. */
-async function adminUserIds(db: Client): Promise<number[]> {
+export async function adminUserIds(db: Client): Promise<number[]> {
   const emails = (process.env.ADMIN_EMAILS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (!emails.length) return [];
   const rs = await db.execute({ sql: `SELECT id FROM users WHERE lower(email) IN (${emails.map(() => "?").join(",")})`, args: emails });

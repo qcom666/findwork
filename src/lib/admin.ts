@@ -17,6 +17,7 @@ export type AdminUser = {
   banned: boolean; banReason: string | null; /** владелец (ADMIN_EMAILS): его нельзя блокировать, а его кредиты не входят в учёт */ isAdmin: boolean;
   /** Действующая или ближайшая подписка: тариф, до какого числа оплачено с учётом очереди, есть ли среди них подаренные */
   sub: { title: string; until: number; gift: boolean } | null;
+  lastSeenAt: number | null;
 };
 
 /**
@@ -38,7 +39,7 @@ export async function searchUsers(q: string, limit = 50, opts: { onlyBanned?: bo
   const where = ["u.deleted_at IS NULL", match, opts.onlyBanned ? "u.banned_at IS NOT NULL" : ""].filter(Boolean).join(" AND ");
   const t = stamp();
   const r = await db.execute({
-    sql: `SELECT u.id, u.email, u.tg_username, u.display_name, u.balance, u.created_at, u.banned_at, u.ban_reason,
+    sql: `SELECT u.id, u.email, u.tg_username, u.display_name, u.balance, u.created_at, u.banned_at, u.ban_reason, u.last_seen_at,
                  (SELECT count(*) FROM unlocks k WHERE k.user_id = u.id) AS unlocks,
                  (SELECT coalesce(sum(amount_kop), 0) FROM payments p WHERE p.user_id = u.id AND p.status = 'succeeded' AND p.provider = 'yookassa') AS paid,
                  (SELECT s.plan_id FROM subscriptions s WHERE s.user_id = u.id AND s.ends_at > ? ORDER BY s.starts_at, s.id LIMIT 1) AS sub_plan,
@@ -53,6 +54,7 @@ export async function searchUsers(q: string, limit = 50, opts: { onlyBanned?: bo
     createdAt: Number(x.created_at), unlocks: Number(x.unlocks), paidRub: Number(x.paid) / 100,
     banned: x.banned_at != null, banReason: x.ban_reason == null ? null : String(x.ban_reason), isAdmin: isAdminEmail(String(x.email)),
     sub: x.sub_plan == null ? null : { title: getPlan(String(x.sub_plan))?.title ?? String(x.sub_plan), until: Number(x.sub_until), gift: Number(x.sub_gifts) > 0 },
+    lastSeenAt: x.last_seen_at == null ? null : Number(x.last_seen_at),
   }));
 }
 
@@ -128,6 +130,26 @@ export async function giftSubscription(who: string, planId: string, months: numb
     const balance = Number((await tx.execute({ sql: "SELECT balance FROM users WHERE id = ?", args: [u.id] })).rows[0].balance);
     return { value: { ok: true, title: plan.title, months: m, endsAt, balance } };
   });
+}
+
+export type AdminSubscription = {
+  userId: number; user: string; title: string; months: number; granted: number; creditsPerMonth: number;
+  startsAt: number; endsAt: number; gift: boolean;
+};
+
+/** Все действующие и ждущие своей очереди подписки, ближайшие к окончанию сверху. */
+export async function listSubscriptions(limit = 300): Promise<AdminSubscription[]> {
+  const db = await appDb();
+  const rs = await db.execute({
+    sql: `SELECT s.*, u.email, u.tg_username, u.display_name FROM subscriptions s JOIN users u ON u.id = s.user_id
+          WHERE s.ends_at > ? ORDER BY s.ends_at, s.id LIMIT ?`,
+    args: [stamp(), limit],
+  });
+  return rs.rows.map((r) => ({
+    userId: Number(r.user_id), user: userLabel(String(r.email), r.tg_username == null ? null : String(r.tg_username), r.display_name == null ? null : String(r.display_name)),
+    title: getPlan(String(r.plan_id))?.title ?? String(r.plan_id), months: Number(r.months), granted: Number(r.granted),
+    creditsPerMonth: Number(r.credits_per_month), startsAt: Number(r.starts_at), endsAt: Number(r.ends_at), gift: String(r.payment_id).startsWith(GIFT),
+  }));
 }
 
 /**

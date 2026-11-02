@@ -222,8 +222,8 @@ async function migrate(client: Client): Promise<void> {
     }
   };
 
-  // sub_next_at: когда подписке пора начислить следующий месяц (NULL: начислять нечего). consent_*: когда и какую редакцию документов принял пользователь. tg_*: вход через Telegram (почты у такого аккаунта нет, вместо неё служебный адрес). banned_at, ban_reason: блокировка владельцем (входить и пользоваться нельзя). deleted_at: аккаунт удалён самим человеком (строка обезличена, остаётся ради платежей и проводок).
-  await addColumns("users", [["ref_code", "TEXT"], ["referred_by", "INTEGER"], ["sub_next_at", "INTEGER"], ["consent_at", "INTEGER"], ["consent_ver", "TEXT"], ["tg_id", "INTEGER"], ["tg_username", "TEXT"], ["display_name", "TEXT"], ["banned_at", "INTEGER"], ["ban_reason", "TEXT"], ["deleted_at", "INTEGER"]]);
+  // sub_next_at: когда подписке пора начислить следующий месяц (NULL: начислять нечего). consent_*: когда и какую редакцию документов принял пользователь. tg_*: вход через Telegram (почты у такого аккаунта нет, вместо неё служебный адрес). banned_at, ban_reason: блокировка владельцем (входить и пользоваться нельзя). deleted_at: аккаунт удалён самим человеком (строка обезличена, остаётся ради платежей и проводок). last_seen_at: когда человек последний раз открывал сайт под своим аккаунтом (с точностью до нескольких минут).
+  await addColumns("users", [["ref_code", "TEXT"], ["referred_by", "INTEGER"], ["sub_next_at", "INTEGER"], ["consent_at", "INTEGER"], ["consent_ver", "TEXT"], ["tg_id", "INTEGER"], ["tg_username", "TEXT"], ["display_name", "TEXT"], ["banned_at", "INTEGER"], ["ban_reason", "TEXT"], ["deleted_at", "INTEGER"], ["last_seen_at", "INTEGER"]]);
   await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_ref ON users(ref_code)");
   // Вход через Telegram: tg_id один на аккаунт (у аккаунтов с почтой он пустой, пустые значения в уникальном индексе не конфликтуют).
   await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_tg ON users(tg_id)");

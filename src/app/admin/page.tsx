@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminGiftSubscription } from "@/components/AdminGiftSubscription";
 import { AdminGrant } from "@/components/AdminGrant";
 import { AdminNav } from "@/components/AdminNav";
 import { getAdmin } from "@/lib/admin";
@@ -37,6 +38,7 @@ export default async function Admin() {
       )}
 
       <AdminGrant selfEmail={admin.email} />
+      <AdminGiftSubscription selfEmail={admin.email} />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Выручка всего" value={rub(m.money.revenueRub)} sub={`за 30 дней: ${rub(m.money.revenue30Rub)}`} />

@@ -8,6 +8,7 @@ import { createUser } from "./users";
 
 const COOKIE = "fw_session";
 const SESSION_DAYS = 30;
+const SEEN_EVERY = 300;
 const now = () => Math.floor(Date.now() / 1000);
 
 /** label: как показывать человека: почта или, если входил через Telegram, @username и имя. */
@@ -90,12 +91,16 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   try {
     const db = await appDb();
     const r = await db.execute({
-      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_id, u.tg_username, u.display_name, u.pass_hash FROM sessions s JOIN users u ON u.id = s.user_id
+      sql: `SELECT u.id, u.email, u.balance, u.sub_next_at, u.tg_id, u.tg_username, u.display_name, u.pass_hash, u.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ? AND s.expires_at > ? AND u.banned_at IS NULL`,
       args: [sha256(token), now()],
     });
     const row = r.rows[0];
     if (!row) return null;
+    // Время последнего захода для админки («Активность»). Пишем не чаще раза в SEEN_EVERY секунд, чтобы не нагружать базу каждым кликом.
+    if (row.last_seen_at == null || Number(row.last_seen_at) <= now() - SEEN_EVERY) {
+      await db.execute({ sql: "UPDATE users SET last_seen_at = ? WHERE id = ?", args: [now(), Number(row.id)] }).catch(() => {});
+    }
     let balance = Number(row.balance);
     // Подписке пришло время начислить очередной месяц: начисляем при заходе пользователя, отдельного планировщика нет.
     if (row.sub_next_at != null && Number(row.sub_next_at) <= now()) {
