@@ -14,7 +14,7 @@ bash scripts/deploy-server.sh leads    # залить каталог вручн�
 bash scripts/deploy-server.sh setup    # обновить службу, сборку и бэкап из deploy/server/
 ```
 
-Если новый выпуск не ответил за минуту, `release.sh` сам возвращает прошлый. Хранятся три последних выпуска в `/srv/lidomap/releases`; откат вручную: `ln -sfn <выпуск> /srv/lidomap/current && systemctl restart lidomap`.
+Если новый выпуск не ответил за минуту, `release.sh` сам возвращает прошлый. После удачной выкладки в `/srv/lidomap/releases` остаётся только новый выпуск (диск маленький); откатиться на прошлый коммит — выложить его заново: `git checkout <коммит> && bash scripts/deploy-server.sh`.
 
 Пуш в `main` по-прежнему выкладывает и копию на Vercel (см. ниже), на сервер код попадает только этим скриптом.
 

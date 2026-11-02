@@ -25,6 +25,7 @@ if [ "$ok" != 1 ]; then
   exit 1
 fi
 
-# Храним три последних выпуска: к ним можно откатиться одной командой.
-ls -1dt /srv/lidomap/releases/*/ | tail -n +4 | xargs -r rm -rf
+# Прошлые выпуски удаляем: каждый весит ~700 МБ, а диск маленький. Для отката прошлый нужен только до проверки выше.
+KEEP=$(readlink -f "$REL")
+for d in /srv/lidomap/releases/*/; do [ "$(readlink -f "$d")" = "$KEEP" ] || rm -rf "$d"; done
 echo "выпуск включён: $(basename "$REL")"
