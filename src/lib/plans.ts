@@ -26,15 +26,15 @@ export type Period = { months: number; discountPct: number };
 
 export const PLANS: Plan[] = [
   {
-    id: "freelance", title: "Фриланс", tagline: "Для старта и теста ниши", creditsPerMonth: 400, priceMonthRub: 990,
+    id: "freelance", title: "Фриланс", tagline: "Для старта и теста ниши", creditsPerMonth: 400, priceMonthRub: 790,
     perks: { exclusiveSlots: 5, reportsPer30d: 10, packageDiscountPct: 10, pitchesPerHour: 100, referralMultiplier: 1 },
   },
   {
-    id: "studio", title: "Студия", tagline: "Для активных продаж", creditsPerMonth: 1500, priceMonthRub: 2490, popular: true,
+    id: "studio", title: "Студия", tagline: "Для активных продаж", creditsPerMonth: 1500, priceMonthRub: 1990, popular: true,
     perks: { exclusiveSlots: 25, reportsPer30d: 60, packageDiscountPct: 20, pitchesPerHour: 200, referralMultiplier: 2 },
   },
   {
-    id: "agency", title: "Агентство", tagline: "Для команд и потока", creditsPerMonth: 5000, priceMonthRub: 4990,
+    id: "agency", title: "Агентство", tagline: "Для команд и потока", creditsPerMonth: 5000, priceMonthRub: 3990,
     perks: { exclusiveSlots: 100, reportsPer30d: 300, packageDiscountPct: 30, pitchesPerHour: 500, referralMultiplier: 2 },
   },
 ];
