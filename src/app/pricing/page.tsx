@@ -17,7 +17,7 @@ import { getSubscriptions } from "@/lib/subscriptions";
 
 export const metadata = {
   title: "Тарифы и оплата",
-  description: "Подписка или разовые кредиты на контакты заведений. Неделя тарифа «Фриланс» за 1 ₽, кредиты не сгорают, неиспользованные возвращаем.",
+  description: "Подписка или разовые кредиты на контакты заведений. Кредиты не сгорают, неиспользованные возвращаем.",
 };
 
 const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -100,7 +100,7 @@ export default async function Pricing() {
           <Figure value={num(start.creditsPerMonth)} label={`контактов в месяц на «${start.title}»`} />
         </div>
         <ul className="mt-6 grid gap-3 border-t border-white/15 pt-5 text-sm text-white/85 sm:grid-cols-3">
-          <li><b className="text-white">Подписка без автопродления.</b> Платите один раз за срок. Продлевается сама только пробная неделя, и это отключается в аккаунте.</li>
+          <li><b className="text-white">Подписка без автопродления.</b> Платите один раз за срок{trialEnabled() ? ". Продлевается сама только пробная неделя, и это отключается в аккаунте." : ", карта не привязывается."}</li>
           <li><b className="text-white">Кредиты не сгорают.</b> Остаток переходит на следующий месяц.</li>
           <li><b className="text-white">Возвращаем неиспользованное.</b> По письму, в течение 10 рабочих дней.</li>
         </ul>
