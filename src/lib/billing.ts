@@ -5,7 +5,7 @@ import { appDb, writeTx } from "./db";
 import { getEntitlements, entitlementsAt } from "./entitlements";
 import { plural } from "./format";
 import { getPlan, planCredits, planPrice, type Plan } from "./plans";
-import { startSubscription } from "./subscriptions";
+import { activateTrial, startSubscription, type SavedMethod } from "./subscriptions";
 
 export type Package = { id: string; title: string; credits: number; priceRub: number };
 
@@ -41,16 +41,30 @@ export function appBaseUrl(req: Request): string {
 
 // ---------------------------------------------------------------- клиент ЮKassa
 
-type YooPayment = {
+export type YooPayment = {
   id: string;
   status: string;
   paid?: boolean;
   amount?: { value: string; currency: string };
   confirmation?: { confirmation_url?: string };
   metadata?: Record<string, string>;
+  /** Способ оплаты; saved: true, если ЮKassa сохранила его для автоплатежей (только когда мы об этом просили) */
+  payment_method?: { id?: string; type?: string; saved?: boolean; title?: string; card?: { last4?: string; card_type?: string } };
+  cancellation_details?: { party?: string; reason?: string };
 };
 
-async function yoo(path: string, init: { method?: string; idempotenceKey?: string; body?: unknown } = {}): Promise<YooPayment> {
+/** Подпись сохранённой карты для показа человеку: «Mir *4444» или «*4444». Номера карты у нас нет, только последние цифры от ЮKassa. */
+export function methodTitle(m: YooPayment["payment_method"]): string {
+  if (m?.card?.last4) return `${m.card.card_type && m.card.card_type !== "Unknown" ? `${m.card.card_type} ` : ""}*${m.card.last4}`;
+  return m?.title || "";
+}
+
+export function savedMethod(yp: YooPayment): SavedMethod | null {
+  const m = yp.payment_method;
+  return m?.id ? { id: m.id, title: methodTitle(m), saved: m.saved === true } : null;
+}
+
+export async function yoo(path: string, init: { method?: string; idempotenceKey?: string; body?: unknown } = {}): Promise<YooPayment> {
   const base = process.env.YOOKASSA_API_URL ?? "https://api.yookassa.ru/v3";
   const auth = Buffer.from(`${process.env.YOOKASSA_SHOP_ID}:${process.env.YOOKASSA_SECRET_KEY}`).toString("base64");
   const res = await fetch(base + path, {
@@ -95,8 +109,12 @@ function receipt(email: string, description: string, value: string) {
 // ---------------------------------------------------------------- платежи
 
 type Order = {
-  packageId: string; kind: "credits" | "subscription"; planId?: string; months?: number;
+  packageId: string; kind: "credits" | "subscription" | "trial"; planId?: string; months?: number;
   credits: number; priceRub: number; description: string;
+  /** Пробная неделя: попросить ЮKassa сохранить карту для автопродления; на странице оплаты тогда только карта */
+  saveCard?: boolean;
+  /** Выполняется после записи платежа, до перехода в ЮKassa: вебхук может прийти раньше, чем мы вернёмся из запроса */
+  onCreated?: (paymentId: string) => Promise<void>;
 };
 
 async function createPayment(user: { id: number; email: string }, o: Order, baseUrl: string): Promise<{ paymentId: string; url: string }> {
@@ -108,6 +126,7 @@ async function createPayment(user: { id: number; email: string }, o: Order, base
           VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     args: [id, user.id, o.packageId, o.credits, o.priceRub * 100, provider, now(), o.kind, o.planId ?? null, o.months ?? null],
   });
+  await o.onCreated?.(id);
 
   if (provider === "mock") return { paymentId: id, url: `/billing/mock?payment=${id}` };
 
@@ -122,6 +141,7 @@ async function createPayment(user: { id: number; email: string }, o: Order, base
         confirmation: { type: "redirect", return_url: `${baseUrl}/billing/return?payment=${id}` },
         description: o.description.slice(0, 128),
         metadata: { payment_id: id, user_id: String(user.id) },
+        ...(o.saveCard ? { save_payment_method: true, payment_method_data: { type: "bank_card" } } : {}),
         ...receipt(user.email, o.description, value),
       },
     });
@@ -149,7 +169,19 @@ export async function createCheckout(user: { id: number; email: string }, pkg: P
   );
 }
 
-/** Подписка на months месяцев с оплатой один раз; автопродления нет. */
+/** Подписка на months месяцев с оплатой один раз; автопродления нет (оно бывает только после пробной недели, autorenew.ts). */
+/** Пробная неделя за TRIAL.priceRub с сохранением карты. Проверки, кому можно, и запись согласия: autorenew.ts. */
+export function createTrialPayment(user: { id: number; email: string }, plan: Plan, o: { credits: number; priceRub: number; days: number }, baseUrl: string, onCreated: (paymentId: string) => Promise<void>) {
+  return createPayment(
+    user,
+    {
+      packageId: `trial:${plan.id}`, kind: "trial", planId: plan.id, credits: o.credits, priceRub: o.priceRub,
+      description: `Lidomap: пробная неделя «${plan.title}», ${o.days} дней, далее автопродление`, saveCard: true, onCreated,
+    },
+    baseUrl,
+  );
+}
+
 export function createSubscriptionCheckout(user: { id: number; email: string }, plan: Plan, months: number, baseUrl: string) {
   return createPayment(
     user,
@@ -162,8 +194,11 @@ export function createSubscriptionCheckout(user: { id: number; email: string }, 
   );
 }
 
-/** Зачисляет кредиты за оплаченный платёж. Безопасно вызывать сколько угодно раз: начислит один. */
-export async function fulfillPayment(paymentId: string): Promise<boolean> {
+/**
+ * Зачисляет кредиты за оплаченный платёж. Безопасно вызывать сколько угодно раз: начислит один.
+ * method: сохранённая ЮKassa карта (для пробной недели: с неё пойдёт автопродление).
+ */
+export async function fulfillPayment(paymentId: string, method: SavedMethod | null = null): Promise<boolean> {
   return writeTx<boolean>(async (tx) => {
     const t = now();
     const upd = await tx.execute({
@@ -171,9 +206,22 @@ export async function fulfillPayment(paymentId: string): Promise<boolean> {
       args: [t, paymentId],
     });
     if (upd.rowsAffected !== 1) return { value: false, rollback: true };
-    const p = (await tx.execute({ sql: "SELECT user_id, credits, kind, plan_id, months FROM payments WHERE id = ?", args: [paymentId] })).rows[0];
+    const p = (await tx.execute({ sql: "SELECT user_id, credits, kind, plan_id, months, package_id FROM payments WHERE id = ?", args: [paymentId] })).rows[0];
+    if (p.kind === "trial") {
+      await activateTrial(tx, { userId: Number(p.user_id), paymentId, credits: Number(p.credits) }, t, method);
+      return { value: true }; // за пробную неделю награду пригласившему не даём: иначе её фармили бы за 1 ₽
+    }
     if (p.kind === "subscription") {
       await startSubscription(tx, { userId: Number(p.user_id), paymentId, planId: String(p.plan_id), months: Number(p.months), creditsTotal: Number(p.credits) }, t);
+      // Очередной месяц автопродления: следующее списание — когда закончится только что оплаченный месяц
+      const auto = /^autorenew:(\d+)$/.exec(String(p.package_id));
+      if (auto) {
+        const ends = Number((await tx.execute({ sql: "SELECT ends_at FROM subscriptions WHERE payment_id = ?", args: [paymentId] })).rows[0].ends_at);
+        await tx.execute({
+          sql: "UPDATE autorenewals SET next_charge_at = ?, charge_payment_id = NULL, failures = 0 WHERE id = ? AND charge_payment_id = ?",
+          args: [ends, Number(auto[1]), paymentId],
+        });
+      }
     } else {
       await tx.execute({ sql: "UPDATE users SET balance = balance + ? WHERE id = ?", args: [Number(p.credits), Number(p.user_id)] });
       await tx.execute({
@@ -227,7 +275,7 @@ export async function settleByProviderId(providerPaymentId: string): Promise<Set
       console.error(`[billing] сумма платежа ${providerPaymentId} не совпала: ${yp.amount?.value} ${yp.amount?.currency}, ждали ${expected} RUB`);
       return "mismatch";
     }
-    await fulfillPayment(String(row.id));
+    await fulfillPayment(String(row.id), savedMethod(yp));
     return "succeeded";
   }
   if (yp.status === "canceled") {
@@ -266,7 +314,7 @@ export async function settlePendingForUser(userId: number): Promise<number> {
 
 export type PaymentRow = {
   id: string; packageId: string; credits: number; amountRub: number; status: string; provider: string;
-  providerPaymentId: string | null; createdAt: number; kind: "credits" | "subscription"; planId: string | null; months: number | null;
+  providerPaymentId: string | null; createdAt: number; kind: "credits" | "subscription" | "trial"; planId: string | null; months: number | null;
   /** Что куплено, для показа человеку. */
   title: string;
   /** Чек из «Мой налог», если владелец его уже оформил. */
@@ -274,12 +322,15 @@ export type PaymentRow = {
 };
 
 function toPayment(r: Record<string, unknown>): PaymentRow {
-  const kind = r.kind === "subscription" ? "subscription" : "credits";
+  const kind = r.kind === "subscription" || r.kind === "trial" ? r.kind : "credits";
   const planId = r.plan_id == null ? null : String(r.plan_id);
   const months = r.months == null ? null : Number(r.months);
-  const title = kind === "subscription"
-    ? `Подписка «${(planId && getPlan(planId)?.title) || planId}» на ${months} мес.`
-    : `${Number(r.credits)} ${plural(Number(r.credits), "кредит", "кредита", "кредитов")}`;
+  const planTitle = (planId && getPlan(planId)?.title) || planId;
+  const title = kind === "trial"
+    ? `Пробная неделя «${planTitle}»`
+    : kind === "subscription"
+      ? `Подписка «${planTitle}» на ${months} мес.${String(r.package_id).startsWith("autorenew:") ? " (автопродление)" : ""}`
+      : `${Number(r.credits)} ${plural(Number(r.credits), "кредит", "кредита", "кредитов")}`;
   return {
     kind, planId, months, title,
     id: String(r.id), packageId: String(r.package_id), credits: Number(r.credits), amountRub: Number(r.amount_kop) / 100,
@@ -301,12 +352,15 @@ export async function listPayments(userId: number, limit = 20): Promise<PaymentR
   return r.rows.map((x) => toPayment(x as unknown as Record<string, unknown>));
 }
 
+/** Тестовая «карта»: с ней автопродление в тестовом режиме списывается сразу и без денег. */
+export const MOCK_CARD: SavedMethod = { id: "mock-card", title: "Test *4444", saved: true };
+
 /** Подтверждение тестовой оплаты (только когда mockMode()). */
 export async function confirmMockPayment(userId: number, paymentId: string): Promise<boolean> {
   if (!mockMode()) return false;
   const p = await getPayment(userId, paymentId);
   if (!p || p.provider !== "mock") return false;
-  return fulfillPayment(paymentId);
+  return fulfillPayment(paymentId, p.kind === "trial" ? MOCK_CARD : null);
 }
 
 // ---------------------------------------------------------------- адреса ЮKassa (по документации)

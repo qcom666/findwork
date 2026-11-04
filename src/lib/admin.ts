@@ -134,7 +134,7 @@ export async function giftSubscription(who: string, planId: string, months: numb
 
 export type AdminSubscription = {
   userId: number; user: string; title: string; months: number; granted: number; creditsPerMonth: number;
-  startsAt: number; endsAt: number; gift: boolean;
+  startsAt: number; endsAt: number; gift: boolean; trial: boolean;
 };
 
 /** Все действующие и ждущие своей очереди подписки, ближайшие к окончанию сверху. */
@@ -149,6 +149,7 @@ export async function listSubscriptions(limit = 300): Promise<AdminSubscription[
     userId: Number(r.user_id), user: userLabel(String(r.email), r.tg_username == null ? null : String(r.tg_username), r.display_name == null ? null : String(r.display_name)),
     title: getPlan(String(r.plan_id))?.title ?? String(r.plan_id), months: Number(r.months), granted: Number(r.granted),
     creditsPerMonth: Number(r.credits_per_month), startsAt: Number(r.starts_at), endsAt: Number(r.ends_at), gift: String(r.payment_id).startsWith(GIFT),
+    trial: Number(r.trial ?? 0) === 1,
   }));
 }
 
@@ -214,6 +215,11 @@ export async function banUser(userId: number, reason: string, opts: { zero?: boo
     await tx.execute({ sql: "UPDATE password_resets SET used = 1 WHERE user_id = ?", args: [userId] });
     await tx.execute({ sql: "DELETE FROM lead_claims WHERE user_id = ?", args: [userId] });
     await tx.execute({ sql: "UPDATE audit_reports SET revoked = 1 WHERE user_id = ?", args: [userId] });
+    // Заблокированному не продлеваем: карта больше не используется
+    await tx.execute({
+      sql: "UPDATE autorenewals SET status = 'canceled', canceled_at = ?, cancel_reason = 'admin', method_id = NULL WHERE user_id = ? AND status IN ('active', 'pending')",
+      args: [stamp(), userId],
+    });
     const taken = opts.zero ? await zeroIn(tx, userId, "Блокировка: кредиты забраны") : 0;
     const balance = Number((await tx.execute({ sql: "SELECT balance FROM users WHERE id = ?", args: [userId] })).rows[0].balance);
     return { value: { ok: true, balance, taken } };

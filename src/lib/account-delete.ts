@@ -30,8 +30,8 @@ export async function deleteAccount(userId: number): Promise<DeleteResult> {
     const u = (await tx.execute({ sql: "SELECT email, balance, tg_id, deleted_at FROM users WHERE id = ?", args: [userId] })).rows[0];
     if (!u || u.deleted_at != null) return { value: { ok: false, reason: "not_found" }, rollback: true };
     if (isAdminEmail(String(u.email))) return { value: { ok: false, reason: "admin" }, rollback: true };
-    // Подаренная из админки подписка (payment_id admin:…) удалению не мешает: возвращать за неё нечего
-    const active = Number((await tx.execute({ sql: "SELECT count(*) AS n FROM subscriptions WHERE user_id = ? AND ends_at > ? AND payment_id NOT LIKE 'admin:%'", args: [userId, t] })).rows[0].n);
+    // Подаренная из админки подписка (payment_id admin:…) и пробная неделя удалению не мешают: возвращать за них нечего
+    const active = Number((await tx.execute({ sql: "SELECT count(*) AS n FROM subscriptions WHERE user_id = ? AND ends_at > ? AND payment_id NOT LIKE 'admin:%' AND trial = 0", args: [userId, t] })).rows[0].n);
     if (active > 0) return { value: { ok: false, reason: "subscription" }, rollback: true };
 
     for (const h of identityHashes(String(u.email), u.tg_id == null ? null : Number(u.tg_id))) {
@@ -39,6 +39,11 @@ export async function deleteAccount(userId: number): Promise<DeleteResult> {
     }
     await tx.execute({ sql: "DELETE FROM deleted_identities WHERE created_at < ?", args: [t - YEAR] });
 
+    // Удалённый аккаунт больше не продлевается: карта не используется
+    await tx.execute({
+      sql: "UPDATE autorenewals SET status = 'canceled', canceled_at = ?, cancel_reason = 'deleted', method_id = NULL WHERE user_id = ? AND status IN ('active', 'pending')",
+      args: [t, userId],
+    });
     for (const table of ["sessions", "password_resets", "lead_notes", "lead_pitches", "unlocks", "lead_claims", "audit_reports", "tg_login_requests"]) {
       await tx.execute({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] });
     }

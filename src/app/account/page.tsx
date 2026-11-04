@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/Small";
+import { AutorenewBox } from "@/components/AutorenewBox";
 import { CopyField } from "@/components/CopyField";
 import { DeleteAccount } from "@/components/DeleteAccount";
 import { TelegramLinkBox } from "@/components/TelegramLinkBox";
 import { PromoForm } from "@/components/PromoForm";
 import { getCurrentUser } from "@/lib/auth";
+import { getAutorenewal } from "@/lib/autorenew";
 import { listPayments, settlePendingForUser } from "@/lib/billing";
 import { getBalance, getLedger, referralReward, SIGNUP_BONUS } from "@/lib/credits";
 import { plural } from "@/lib/format";
+import { fmtRub } from "@/lib/plans";
 import { getLeadsUnlocked } from "@/lib/search";
 import { appDb } from "@/lib/db";
 import { bonusAvailable } from "@/lib/bonus";
@@ -34,7 +37,10 @@ export default async function Account() {
   // Если вебхук ЮKassa не дошёл, платёж подтянется при заходе в аккаунт.
   const settled = await settlePendingForUser(user.id).catch(() => 0);
   const balance = settled ? await getBalance(user.id) : user.balance;
-  const [payments, ledger, ref, subs, ent, claims, quota, giftOnLink] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id), getEntitlements(user.id), activeClaimCount(user.id), reportQuota(user.id), appDb().then((db) => bonusAvailable(db, user.id))]);
+  const [payments, ledger, ref, subs, ent, claims, quota, giftOnLink, auto] = await Promise.all([listPayments(user.id, 20), getLedger(user.id, 50), getReferralInfo(user.id), getSubscriptions(user.id), getEntitlements(user.id), activeClaimCount(user.id), reportQuota(user.id), appDb().then((db) => bonusAvailable(db, user.id)), getAutorenewal(user.id)]);
+  const paidUntil = subs.length ? Math.max(...subs.map((s) => s.endsAt)) : null;
+  // Отключённое автопродление показываем, пока доигрывает оплаченное: потом напоминать о нём незачем
+  const showAuto = auto && (auto.status === "active" || (paidUntil != null && auto.canceledAt != null && auto.canceledAt > Date.now() / 1000 - 60 * 86400));
   const reward = referralReward();
   const inviteLink = `${await siteUrl()}/r/${ref.code}`;
   const unlockIds = ledger.filter((l) => l.reason === "unlock" && l.ref).map((l) => l.ref as string);
@@ -59,19 +65,31 @@ export default async function Account() {
         <h2 className="text-sm font-semibold">Подписка</h2>
         {subs.length === 0 ? (
           <p className="text-sm text-muted">
-            Подписки нет. Она дешевле разовых пакетов: кредиты приходят каждый месяц, автопродления нет.{" "}
+            Подписки нет. Она дешевле разовых пакетов: кредиты приходят каждый месяц, а продлевать или нет, решаете вы.{" "}
             <Link href="/pricing" className="text-accent hover:underline">Посмотреть тарифы</Link>
           </p>
         ) : (
           <ul className="space-y-2 text-sm">
             {subs.map((s, i) => (
               <li key={`${s.startsAt}-${i}`}>
-                <b>«{s.title}»</b>, {s.creditsPerMonth} {plural(s.creditsPerMonth, "кредит", "кредита", "кредитов")} в месяц
-                {s.startsAt * 1000 > Date.now() ? <span className="text-muted"> · начнётся {day(s.startsAt)}</span> : <span className="text-muted"> · оплачена до {day(s.endsAt)}</span>}
+                <b>«{s.title}»</b>
+                {s.trial ? <>, пробная неделя, {s.creditsPerMonth} {plural(s.creditsPerMonth, "кредит", "кредита", "кредитов")}</> : <>, {s.creditsPerMonth} {plural(s.creditsPerMonth, "кредит", "кредита", "кредитов")} в месяц</>}
+                {s.startsAt * 1000 > Date.now() ? <span className="text-muted"> · начнётся {day(s.startsAt)}</span> : <span className="text-muted"> · {s.trial ? "до" : "оплачена до"} {day(s.endsAt)}</span>}
                 {s.nextGrantAt && <span className="text-muted"> · следующие кредиты {day(s.nextGrantAt)}</span>}
               </li>
             ))}
           </ul>
+        )}
+        {showAuto && auto && (
+          <AutorenewBox
+            active={auto.status === "active"}
+            title={auto.title}
+            price={fmtRub(auto.priceRub)}
+            card={auto.methodTitle}
+            next={auto.nextChargeAt ? day(auto.nextChargeAt) : null}
+            until={paidUntil ? day(paidUntil) : null}
+            canceledOn={auto.canceledAt ? day(auto.canceledAt) : null}
+          />
         )}
         {ent.planId && (
           <p className="border-t border-line pt-2 text-sm text-muted">

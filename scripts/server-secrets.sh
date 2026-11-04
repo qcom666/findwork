@@ -20,5 +20,6 @@ ask() {
 
 ask TELEGRAM_BOT_TOKEN "токен бота из @BotFather → /mybots → API Token"
 ask YOOKASSA_SECRET_KEY "секретный ключ из кабинета ЮKassa → Интеграция → Ключи API"
+ask TRIAL_ENABLED "1 — показать неделю за 1 ₽, когда ЮKassa включит автоплатежи; 0 — скрыть"
 ssh -i "$KEY" -o BatchMode=yes "$HOST" 'systemctl restart lidomap 2>/dev/null || true'
 echo "Готово."

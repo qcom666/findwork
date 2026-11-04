@@ -1,6 +1,7 @@
-import type { Transaction } from "@libsql/client";
+import { createHash } from "node:crypto";
+import type { Client, Transaction } from "@libsql/client";
 import { appDb, writeTx } from "./db";
-import { addMonths, getPlan } from "./plans";
+import { TRIAL, addMonths, getPlan } from "./plans";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -64,6 +65,59 @@ export async function startSubscription(
   await grantDue(tx, p.userId, t);
 }
 
+export type SavedMethod = { id: string; title: string; saved: boolean };
+
+const trialHashes = (userId: number, tgId: number | null) =>
+  [`trial:user:${userId}`, ...(tgId != null ? [`trial:tg:${tgId}`] : [])].map((s) => createHash("sha256").update(s).digest("hex"));
+
+/** Брал ли человек пробную неделю раньше: с этого аккаунта или с этим Telegram на другом аккаунте. */
+export async function trialUsed(db: Client | Transaction, userId: number, tgId: number | null): Promise<boolean> {
+  const h = trialHashes(userId, tgId);
+  return (await db.execute({ sql: `SELECT 1 FROM trial_claims WHERE hash IN (${h.map(() => "?").join(",")}) LIMIT 1`, args: h })).rows.length > 0;
+}
+
+/**
+ * Пробная неделя после оплаты (внутри транзакции fulfillPayment): подписка на TRIAL.days дней с кредитами пробного срока сразу,
+ * отметка «пробная взята» и включение автопродления, если ЮKassa сохранила карту. Не сохранила — неделя всё равно начинается,
+ * а автопродление выключается: списывать будет не с чего.
+ */
+export async function activateTrial(tx: Transaction, p: { userId: number; paymentId: string; credits: number }, t: number, method: SavedMethod | null): Promise<void> {
+  const u = (await tx.execute({ sql: "SELECT tg_id FROM users WHERE id = ?", args: [p.userId] })).rows[0];
+  const tgId = u?.tg_id == null ? null : Number(u.tg_id);
+  if (await trialUsed(tx, p.userId, tgId)) {
+    // Пробную оплатили второй раз (две вкладки, две оплаты): вторую неделю не даём, 1 ₽ возвращается по запросу (раздел 16 оферты)
+    await tx.execute({
+      sql: "UPDATE autorenewals SET status = 'canceled', canceled_at = ?, cancel_reason = 'duplicate' WHERE trial_payment_id = ? AND status = 'pending'",
+      args: [t, p.paymentId],
+    });
+    console.error(`[subscriptions] повторная оплата пробной недели ${p.paymentId}, пользователь ${p.userId}`);
+    return;
+  }
+  for (const h of trialHashes(p.userId, tgId)) {
+    await tx.execute({ sql: "INSERT OR IGNORE INTO trial_claims(hash, user_id, created_at) VALUES (?, ?, ?)", args: [h, p.userId, t] });
+  }
+  const last = Number((await tx.execute({ sql: "SELECT max(ends_at) AS e FROM subscriptions WHERE user_id = ?", args: [p.userId] })).rows[0]?.e ?? 0);
+  const startsAt = Math.max(t, last);
+  const endsAt = startsAt + TRIAL.days * 86400;
+  await tx.execute({
+    sql: `INSERT INTO subscriptions(user_id, payment_id, plan_id, months, credits_per_month, starts_at, ends_at, granted, created_at, trial)
+          VALUES (?, ?, ?, 1, ?, ?, ?, 0, ?, 1)`,
+    args: [p.userId, p.paymentId, TRIAL.planId, p.credits, startsAt, endsAt, t],
+  });
+  await grantDue(tx, p.userId, t);
+  if (method?.saved) {
+    await tx.execute({
+      sql: "UPDATE autorenewals SET status = 'active', method_id = ?, method_title = ?, next_charge_at = ? WHERE trial_payment_id = ? AND status = 'pending'",
+      args: [method.id, method.title, endsAt, p.paymentId],
+    });
+  } else {
+    await tx.execute({
+      sql: "UPDATE autorenewals SET status = 'canceled', canceled_at = ?, cancel_reason = 'not_saved' WHERE trial_payment_id = ? AND status = 'pending'",
+      args: [t, p.paymentId],
+    });
+  }
+}
+
 /** Начисляет то, что подписке пора начислить. Дёшево вызывать часто: без записи, если ничего не наступило. */
 export async function syncSubscriptions(userId: number): Promise<number> {
   return writeTx<number>(async (tx) => ({ value: await grantDue(tx, userId) }));
@@ -79,11 +133,14 @@ export type SubscriptionInfo = {
   granted: number;
   /** Когда придут следующие кредиты; null, если все месяцы уже начислены. */
   nextGrantAt: number | null;
+  /** Пробная неделя: срок в днях, кредиты пришли сразу */
+  trial: boolean;
 };
 
 function toInfo(r: Record<string, unknown>): SubscriptionInfo {
   const months = Number(r.months), granted = Number(r.granted), startsAt = Number(r.starts_at);
   return {
+    trial: Number(r.trial ?? 0) === 1,
     planId: String(r.plan_id),
     title: getPlan(String(r.plan_id))?.title ?? String(r.plan_id),
     months,

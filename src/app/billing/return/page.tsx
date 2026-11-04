@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/components/Small";
 import { getCurrentUser } from "@/lib/auth";
+import { getAutorenewal } from "@/lib/autorenew";
 import { getPayment, settleByProviderId } from "@/lib/billing";
 import { plural } from "@/lib/format";
+import { fmtRub } from "@/lib/plans";
 import { getSubscriptionByPayment } from "@/lib/subscriptions";
 
 export const metadata = { title: "Оплата" };
@@ -20,7 +22,8 @@ export default async function BillingReturn({ searchParams }: { searchParams: Pr
     await settleByProviderId(p.providerPaymentId).catch((e) => console.error("[billing] return settle failed", e));
     p = await getPayment(user.id, id);
   }
-  const sub = p && p.status === "succeeded" && p.kind === "subscription" ? await getSubscriptionByPayment(user.id, p.id) : null;
+  const sub = p && p.status === "succeeded" && p.kind !== "credits" ? await getSubscriptionByPayment(user.id, p.id) : null;
+  const auto = p?.kind === "trial" && p.status === "succeeded" ? await getAutorenewal(user.id) : null;
   const date = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
   return (
@@ -33,7 +36,23 @@ export default async function BillingReturn({ searchParams }: { searchParams: Pr
       ) : p.status === "succeeded" ? (
         <>
           <h1 className="text-xl font-semibold text-good">Оплата прошла</h1>
-          {sub ? (
+          {p.kind === "trial" ? (
+            sub ? (
+              <div className="mt-2 space-y-2 text-muted">
+                <p>Пробная неделя «{sub.title}» началась и продлится до {date(sub.endsAt)} На балансе {user.balance} {plural(user.balance, "кредит", "кредита", "кредитов")}.</p>
+                {auto?.status === "active" && auto.nextChargeAt ? (
+                  <p className="text-sm">
+                    {date(auto.nextChargeAt)} спишем {fmtRub(auto.priceRub)} за месяц, если не отключите автопродление. За сутки напомним в Telegram.{" "}
+                    <Link href="/account#autorenew" className="underline">Управлять автопродлением</Link>
+                  </p>
+                ) : (
+                  <p className="text-sm">Автопродление не включено: после пробной недели списаний не будет.</p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-muted">Пробную неделю можно взять один раз, поэтому она не началась повторно. Напишите в поддержку, и мы вернём 1 ₽.</p>
+            )
+          ) : sub ? (
             <p className="mt-2 text-muted">
               Подписка «{sub.title}» оплачена до {date(sub.endsAt)} Кредиты приходят раз в месяц по {sub.creditsPerMonth}
               {sub.startsAt * 1000 <= Date.now() ? "; за первый месяц уже начислены" : `, первые ${date(sub.startsAt)}, когда закончится предыдущая подписка`}. Баланс: {user.balance}.

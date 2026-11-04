@@ -197,6 +197,38 @@ const SCHEMA = [
      user_id INTEGER NOT NULL,
      created_at INTEGER NOT NULL
    )`,
+  // Автопродление после пробной недели (autorenew.ts). Карту хранит ЮKassa, у нас только её идентификатор method_id и подпись «Карта *4444».
+  // status: pending (ждём оплату пробной недели), active, canceled. next_charge_at: когда списать следующий месяц;
+  // notified_for: о каком списании (его next_charge_at) уже предупредили в Telegram; charge_payment_id: списание в процессе,
+  // чтобы не списать дважды. consent_*: когда и по какой редакции оферты человек согласился на автопродление.
+  `CREATE TABLE IF NOT EXISTS autorenewals (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     plan_id TEXT NOT NULL,
+     price_kop INTEGER NOT NULL,
+     trial_payment_id TEXT NOT NULL UNIQUE,
+     status TEXT NOT NULL DEFAULT 'pending',
+     method_id TEXT,
+     method_title TEXT,
+     next_charge_at INTEGER,
+     notified_for INTEGER,
+     notified_at INTEGER,
+     charge_payment_id TEXT,
+     failures INTEGER NOT NULL DEFAULT 0,
+     consent_at INTEGER NOT NULL,
+     consent_ver TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     canceled_at INTEGER,
+     cancel_reason TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS ix_autorenew_user ON autorenewals(user_id, status)`,
+  `CREATE INDEX IF NOT EXISTS ix_autorenew_due ON autorenewals(status, next_charge_at)`,
+  // Кто уже брал пробную неделю: отпечатки аккаунта и Telegram (sha256), чтобы взять её второй раз нельзя было и с нового аккаунта.
+  `CREATE TABLE IF NOT EXISTS trial_claims (
+     hash TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL,
+     created_at INTEGER NOT NULL
+   )`,
   // След объединения аккаунтов (привязка Telegram к аккаунту с почтой): кого во что влили и что перенесли. Нужен для разбора споров.
   `CREATE TABLE IF NOT EXISTS account_merges (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,6 +264,8 @@ async function migrate(client: Client): Promise<void> {
   await addColumns("payments", [["kind", "TEXT NOT NULL DEFAULT 'credits'"], ["plan_id", "TEXT"], ["months", "INTEGER"]]);
   // receipt_url: ссылка на чек из «Мой налог», которую владелец вставляет в админке (самозанятому ЮKassa чеки не выдаёт); её видит покупатель.
   await addColumns("payments", [["receipt_url", "TEXT"], ["receipt_at", "INTEGER"]]);
+  // trial: пробная неделя (срок в днях, а не в месяцах: ends_at задан явно, кредиты пробного срока приходят сразу).
+  await addColumns("subscriptions", [["trial", "INTEGER NOT NULL DEFAULT 0"]]);
 }
 
 export function appDb(): Promise<Client> {

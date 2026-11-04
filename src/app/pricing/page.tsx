@@ -1,21 +1,23 @@
 import Link from "next/link";
 import { PricingSwitcher } from "@/components/PricingSwitcher";
 import { PromoForm } from "@/components/PromoForm";
+import { TrialOffer } from "@/components/TrialOffer";
 import { getCurrentUser } from "@/lib/auth";
+import { renewPriceRub, trialBlock, trialEnabled, trialPlan } from "@/lib/autorenew";
 import { mockMode, PACKAGES, paymentsEnabled } from "@/lib/billing";
 import { SIGNUP_BONUS, UNLOCK_COST } from "@/lib/credits";
 import { pitchFeature } from "@/lib/ai";
 import { dbReady } from "@/lib/db";
 import { getEntitlements } from "@/lib/entitlements";
 import { plural } from "@/lib/format";
-import { PLANS } from "@/lib/plans";
+import { PLANS, TRIAL, fmtRub } from "@/lib/plans";
 import { seller } from "@/lib/seller";
 import { getStats } from "@/lib/search";
 import { getSubscriptions } from "@/lib/subscriptions";
 
 export const metadata = {
   title: "Тарифы и оплата",
-  description: "Подписка или разовые кредиты на контакты заведений. Без автопродления, кредиты не сгорают, неиспользованные возвращаем.",
+  description: "Подписка или разовые кредиты на контакты заведений. Неделя тарифа «Фриланс» за 1 ₽, кредиты не сгорают, неиспользованные возвращаем.",
 };
 
 const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -30,6 +32,9 @@ export default async function Pricing() {
   ]);
   const enabled = paymentsEnabled();
   const sub = subs[0];
+  // Пробную неделю показываем тем, кто может её взять (или войти и взять); кто уже брал или подписан, её не видит
+  const block = user ? await trialBlock(user.id) : null;
+  const trial = !trialEnabled() ? null : !user ? "login" : block === null ? "eligible" : block === "no_telegram" ? "no_telegram" : null;
   const start = PLANS[0];
 
   return (
@@ -50,7 +55,11 @@ export default async function Pricing() {
               {sub ? (
                 <>
                   <b>«{sub.title}»</b>
-                  <span className="text-muted"> — {num(sub.creditsPerMonth)} контактов в месяц, оплачена до {day(sub.endsAt)}</span>
+                  {sub.trial ? (
+                    <span className="text-muted"> — пробная неделя до {day(sub.endsAt)}</span>
+                  ) : (
+                    <span className="text-muted"> — {num(sub.creditsPerMonth)} контактов в месяц, оплачена до {day(sub.endsAt)}</span>
+                  )}
                   {subs.length > 1 && <span className="text-muted">; следом оплачена ещё одна</span>}
                 </>
               ) : (
@@ -91,7 +100,7 @@ export default async function Pricing() {
           <Figure value={num(start.creditsPerMonth)} label={`контактов в месяц на «${start.title}»`} />
         </div>
         <ul className="mt-6 grid gap-3 border-t border-white/15 pt-5 text-sm text-white/85 sm:grid-cols-3">
-          <li><b className="text-white">Без автопродления.</b> Платите один раз за срок, карта не привязывается.</li>
+          <li><b className="text-white">Подписка без автопродления.</b> Платите один раз за срок. Продлевается сама только пробная неделя, и это отключается в аккаунте.</li>
           <li><b className="text-white">Кредиты не сгорают.</b> Остаток переходит на следующий месяц.</li>
           <li><b className="text-white">Возвращаем неиспользованное.</b> По письму, в течение 10 рабочих дней.</li>
         </ul>
@@ -106,6 +115,17 @@ export default async function Pricing() {
         <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">
           Тестовый режим: ЮKassa не подключена, оплата подтверждается кнопкой без реальных денег. В продакшене этого режима нет.
         </p>
+      )}
+
+      {trial && (
+        <TrialOffer
+          state={trial}
+          planTitle={trialPlan().title}
+          days={TRIAL.days}
+          credits={TRIAL.credits}
+          trialRub={TRIAL.priceRub}
+          renewRub={fmtRub(renewPriceRub())}
+        />
       )}
 
       <section className="space-y-4" aria-labelledby="choose-plan">

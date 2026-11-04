@@ -36,8 +36,9 @@ chmod 700 /var/backups/lidomap
 if [ ! -f /etc/lidomap/env ]; then install -m 640 -g lidomap /dev/null /etc/lidomap/env; fi
 
 install -m 755 release.sh backup.sh import-leads.sh /srv/lidomap/bin/
-install -m 644 lidomap.service lidomap-backup.service lidomap-backup.timer /etc/systemd/system/
+install -m 644 lidomap.service lidomap-backup.service lidomap-backup.timer lidomap-autorenew.service lidomap-autorenew.timer /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable lidomap.service >/dev/null
 systemctl enable --now lidomap-backup.timer >/dev/null
+systemctl enable --now lidomap-autorenew.timer >/dev/null
 echo "готово: node $(/usr/local/bin/node -v), npm $(/usr/local/bin/npm -v)"

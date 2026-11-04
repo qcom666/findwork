@@ -39,7 +39,8 @@ const SOURCES: Record<ActivityKind, string> = {
   signup: row("created_at", "signup", "NULL", "NULL", "NULL", "NULL", "NULL", "FROM users", "id"),
   login: row("created_at", "login", "NULL", "NULL", "NULL", "NULL", "NULL", "FROM sessions"),
   unlock: row("created_at", "unlock", "NULL", "NULL", "lead_id", "NULL", "NULL", "FROM unlocks"),
-  payment: row("created_at", "payment", "status", "plan_id", "provider", "amount_kop", "CASE WHEN kind = 'subscription' THEN months ELSE credits END", "FROM payments"),
+  // s2: тариф, у пробной недели с пометкой trial:, у списания автопродления auto:
+  payment: row("created_at", "payment", "status", "CASE WHEN kind = 'trial' THEN 'trial:' || plan_id WHEN package_id LIKE 'autorenew:%' THEN 'auto:' || plan_id ELSE plan_id END", "provider", "amount_kop", "CASE WHEN kind = 'subscription' THEN months ELSE credits END", "FROM payments"),
   // Открытия и пополнения уже есть отдельными событиями, их проводки не дублируем
   credits: row("created_at", "credits", "reason", "ref", "NULL", "delta", "NULL", "FROM ledger WHERE reason NOT IN ('unlock', 'purchase')"),
   pitch: row("created_at", "pitch", "channel", "source", "lead_id", "NULL", "NULL", "FROM lead_pitches"),
@@ -60,7 +61,9 @@ function describe(kind: ActivityKind, r: Record<string, unknown>): string {
     case "login": return "вход на сайт";
     case "unlock": return "открыты контакты";
     case "payment": {
-      const what = s2 ? `подписку «${getPlan(s2)?.title ?? s2}» на ${n2} мес.` : `${n2} кредитов`;
+      const [tag, plan] = s2?.includes(":") ? s2.split(":") : [null, s2];
+      const title = plan ? getPlan(plan)?.title ?? plan : "";
+      const what = tag === "trial" ? `пробная неделя «${title}»` : tag === "auto" ? `автопродление «${title}» на ${n2} мес.` : plan ? `подписку «${title}» на ${n2} мес.` : `${n2} кредитов`;
       return `${PAY_STATUS[s1 ?? ""] ?? s1}: ${what}, ${rub(n1)}${str(r.s3) === "yookassa" ? "" : " (тест)"}`;
     }
     case "credits": {

@@ -52,7 +52,7 @@ export async function mergeAccounts(tx: Transaction, sourceId: number, targetId:
   await run("DELETE FROM promo_redemptions WHERE user_id = ?", sourceId);
 
   // Таблицы, где строки просто меняют владельца.
-  for (const table of ["ledger", "payments", "subscriptions", "lead_claims", "audit_reports"]) {
+  for (const table of ["ledger", "payments", "subscriptions", "autorenewals", "lead_claims", "audit_reports"]) {
     await run(`UPDATE ${table} SET user_id = ? WHERE user_id = ?`, targetId, sourceId);
   }
 

@@ -39,6 +39,13 @@ export const PLANS: Plan[] = [
   },
 ];
 
+/**
+ * Пробная неделя: только тариф «Фриланс», только аккаунтам с Telegram (туда приходят напоминания о списаниях), один раз
+ * на аккаунт и на Telegram. После неё подписка продлевается каждый месяц по цене месяца, пока человек не отключит автопродление
+ * (autorenew.ts, раздел 16 оферты). Обычные подписки по-прежнему без автопродления.
+ */
+export const TRIAL = { planId: "freelance", days: 7, priceRub: 1, credits: 100 } as const;
+
 export const PERIODS: Period[] = [
   { months: 1, discountPct: 0 },
   { months: 3, discountPct: 10 },
