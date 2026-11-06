@@ -7,7 +7,7 @@ export function formatPhone(p: string | null): string {
 }
 
 export const SITE_LABEL: Record<SiteKind, string> = {
-  none: "Сайта нет",
+  none: "Сайт не найден",
   social: "Только соцсети",
   builder: "Сайт на конструкторе",
   real: "Есть сайт",

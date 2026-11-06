@@ -15,7 +15,8 @@ from pathlib import Path
 import duckdb
 from rapidfuzz import fuzz
 
-from common import (SERVICES, classify_url, clean_url, lead_score, lead_services, norm_name, norm_phone, ru_city)
+from common import (SERVICES, classify_url, clean_url, domain_of, email_site, lead_score, lead_services, name_site, norm_name,
+                    norm_phone, ru_city, split_urls)
 from niches import NICHES, is_public_body, niche_for_osm, niche_for_overture
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,32 +178,109 @@ def merge_osm(ov, osm):
     return merged, added
 
 
+def site_links(r):
+    """Ссылки записи по видам: свои сайты, сайты на конструкторах, соцсети. Справочники и карты отбрасываются."""
+    reals, builders, socials = [], [], []
+    for w in (u for v in r["websites"] for u in split_urls(v)):
+        kind, _host = classify_url(w)
+        u = clean_url(w)
+        if kind == "real":
+            reals.append(u)
+        elif kind == "builder":
+            builders.append(u)
+        elif kind == "social":
+            socials.append(u)
+    for s in r["socials"]:
+        kind, _h = classify_url(s)
+        if kind == "social":
+            socials.append(clean_url(s))
+    return sorted(uniq(reals), key=lambda u: not u.startswith("https")), uniq(builders), uniq(socials)
+
+
+def same_place(a, b):
+    """Похожи ли названия одного заведения из разных источников: «Хон Гиль Дон» и «Хон Гиль Дон: лапшичная» — да."""
+    return bool(a and b) and (fuzz.token_set_ratio(a, b) >= 70 or fuzz.partial_ratio(a, b) >= 85)
+
+
+def infer_sites(recs):
+    """
+    Открытые данные часто не знают сайт заведения, хотя он есть, и такое заведение ошибочно попадает в «нужен сайт».
+    Здесь сайт достраивается по признакам, которые уже есть в данных, от самого надёжного к менее надёжному:
+      1. домен в названии («Exist.ru», «Зоооптторг.рф»);
+      2. почта на своём домене (info@ortob.ru), если на этом домене не сидят разные заведения (почта провайдера);
+      3. тот же телефон у записи с сайтом и похожее название: то же заведение из другого источника или другой узел OSM
+         (одного телефона мало: у торговых и бизнес-центров, колл-центров номер общий на разные заведения);
+      4. то же название в том же городе у записи с сайтом: филиал местной сети. Распространённые названия
+         («Продукты», «Шиномонтаж»), которые встречаются во многих городах, не считаются.
+    Достраивается только тем, у кого своего сайта нет (нет сайта или только соцсети); конструкторы не трогаем.
+    Возвращает Counter: сколько записей получили сайт каждым способом.
+    """
+    stats = Counter()
+    mail_names, phone_names, name_cities = defaultdict(set), defaultdict(set), defaultdict(set)
+    phone_sites, place_sites, place_size = defaultdict(list), defaultdict(set), Counter()
+    for r in recs:
+        for e in r["_emails"]:
+            mail_names[e.rsplit("@", 1)[-1]].add(r["_n"])
+        for p in r["_phones"]:
+            phone_names[p].add(r["_n"])
+        if r["city"]:
+            name_cities[r["_n"]].add(r["city"])
+            place_size[(r["city"], r["_n"])] += 1
+        if r["_reals"]:
+            dom = domain_of(r["_reals"][0])
+            for p in r["_phones"]:
+                phone_sites[p].append((dom, r["_n"]))
+            if r["city"]:
+                place_sites[(r["city"], r["_n"])].add(dom)
+
+    for r in recs:
+        if r["_reals"] or r["_builders"]:
+            continue
+        url, how = name_site(r["name"]), "название"
+        if not url:
+            how = "почта"
+            for e in r["_emails"]:
+                if len(mail_names[e.rsplit("@", 1)[-1]]) < 4:
+                    url = email_site(e)
+                    if url:
+                        break
+        if not url:
+            how = "телефон"
+            for p in r["_phones"]:
+                if len(phone_names[p]) >= 4:
+                    continue
+                doms = {d for d, n in phone_sites.get(p, ()) if same_place(r["_n"], n)}
+                if len(doms) == 1:
+                    url = "https://" + doms.pop()
+                    break
+        if not url and r["city"] and len(r["_n"]) >= 4 and len(name_cities[r["_n"]]) < 5:
+            how = "филиал"
+            key = (r["city"], r["_n"])
+            doms = place_sites.get(key)
+            if doms and len(doms) == 1 and place_size[key] <= 7:
+                url = "https://" + next(iter(doms))
+        if url:
+            r["_reals"] = [url]
+            stats[how] += 1
+    return stats
+
+
 def finalize(recs):
     freq = Counter()
     for r in recs:
         r["_n"] = r.get("_n") or norm_name(r["name"])
         freq[r["_n"]] += 1
+        r["_phones"] = uniq(norm_phone(p) for p in r["phones"])
+        r["_emails"] = uniq(e.strip().lower() for e in r["emails"] if e and "@" in e)
+        r["_reals"], r["_builders"], r["_socials"] = site_links(r)
+
+    found = infer_sites(recs)
+    print(f"  сайт найден по косвенным признакам у {sum(found.values())}: {dict(found)}", flush=True)
 
     out = []
     for r in recs:
-        phones = uniq(norm_phone(p) for p in r["phones"])
-        emails = uniq(e.strip().lower() for e in r["emails"] if e and "@" in e)
-        reals, builders, socials = [], [], []
-        for w in r["websites"]:
-            kind, _host = classify_url(w)
-            u = clean_url(w)
-            if kind == "real":
-                reals.append(u)
-            elif kind == "builder":
-                builders.append(u)
-            elif kind == "social":
-                socials.append(u)
-        for s in r["socials"]:
-            kind, _h = classify_url(s)
-            if kind == "social":
-                socials.append(clean_url(s))
-        reals = sorted(uniq(reals), key=lambda u: not u.startswith("https"))
-        builders, socials = uniq(builders), uniq(socials)
+        phones, emails = r["_phones"], r["_emails"]
+        reals, builders, socials = r["_reals"], r["_builders"], r["_socials"]
         if reals:
             site_kind, website = "real", reals[0]
         elif builders:

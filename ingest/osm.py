@@ -83,6 +83,20 @@ def first(tags, *keys):
     return None
 
 
+def joined(tags, *keys):
+    """Все непустые значения ключей через «;»: в website бывает ссылка на карты, а свой сайт лежит в contact:website."""
+    vals = []
+    for k in keys:
+        for v in (tags.get(k) or "").split(";"):
+            v = v.strip()
+            if v and v not in vals:
+                vals.append(v)
+    return ";".join(vals) or None
+
+# Где в OSM лежит сайт заведения; brand:website — сайт сети, к которой оно относится
+WEBSITE_KEYS = ("website", "contact:website", "url", "contact:url", "brand:website")
+
+
 def compact(el):
     t = el.get("tags", {})
     lat = el.get("lat") or (el.get("center") or {}).get("lat")
@@ -99,7 +113,7 @@ def compact(el):
         "lon": lon,
         "osm_key": osm_key,
         "phone": first(t, "phone", "contact:phone", "mobile", "contact:mobile"),
-        "website": first(t, "website", "contact:website", "url"),
+        "website": joined(t, *WEBSITE_KEYS),
         "email": first(t, "email", "contact:email"),
         "vk": first(t, "contact:vk", "vk"),
         "instagram": first(t, "contact:instagram", "instagram"),

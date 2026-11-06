@@ -87,7 +87,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
             <Labeled label="Сайт">
               <select name="site" defaultValue={p.site} className="field">
                 <option value="need">Нужен сайт</option>
-                <option value="none">Сайта нет совсем</option>
+                <option value="none">Сайт не найден</option>
                 <option value="social">Только соцсети</option>
                 <option value="builder">На конструкторе</option>
                 <option value="real">Есть свой сайт</option>

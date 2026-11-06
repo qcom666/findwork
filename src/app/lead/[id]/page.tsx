@@ -148,7 +148,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             </div>
             {(lead.siteKind === "none" || lead.siteKind === "social") && (
               <p className="mt-3 text-xs text-muted">
-                «Сайта нет» означает, что ссылки нет в открытых данных. Перед обращением проверьте на карте и в поиске.
+                «Сайт не найден» означает, что ссылки на сайт нет в открытых данных, в почте и у других записей этого заведения. Перед обращением проверьте на карте и в поиске.
               </p>
             )}
           </section>

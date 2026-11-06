@@ -19,7 +19,7 @@ from pathlib import Path
 import duckdb
 
 from common import ru_city
-from osm import AMENITY, KEYS, LEISURE, TOURISM, UA, first
+from osm import AMENITY, KEYS, LEISURE, TOURISM, UA, WEBSITE_KEYS, first, joined
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -67,7 +67,7 @@ def record(feature: dict):
         "lon": pos[1],
         "osm_key": osm_key,
         "phone": first(t, "phone", "contact:phone", "mobile", "contact:mobile"),
-        "website": first(t, "website", "contact:website", "url"),
+        "website": joined(t, *WEBSITE_KEYS),
         "email": first(t, "email", "contact:email"),
         "vk": first(t, "contact:vk", "vk"),
         "instagram": first(t, "contact:instagram", "instagram"),

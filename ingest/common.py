@@ -51,7 +51,8 @@ AGGREGATOR = {
     "yclients.com", "dikidi.net", "dikidi.ru", "restoran.ru", "tury.ru", "101hotels.com", "hotellook.com",
     "pokupki.market.yandex.ru", "market.yandex.ru", "uslugi.yandex.ru", "eda.yandex.ru", "delivery-club.ru",
     "foursquare.com", "wikipedia.org", "wikimapia.org", "apteka.ru", "gorzdrav.org", "prodoctorov.ru",
-    "napopravku.ru", "docdoc.ru", "sbermarket.ru", "wildberries.ru", "ozon.ru",
+    "napopravku.ru", "docdoc.ru", "sbermarket.ru", "wildberries.ru", "ozon.ru", "moscowmap.ru", "spr.ru",
+    "cataloxy.ru", "list-org.com", "rusprofile.ru", "zoon.com", "tiu.ru", "pulscen.ru", "blizko.ru",
 }
 # бесплатные домены конструкторов и «визитки-ссылки»: сайт есть, но это не собственный сайт бизнеса
 BUILDER_SUFFIXES = (
@@ -104,6 +105,61 @@ def clean_url(url: str):
     if "://" not in u:
         u = "http://" + u
     return u
+
+
+def split_urls(value):
+    """В OSM и других источниках несколько ссылок бывают в одном поле: «a.ru;https://vk.com/a», «a.ru, b.ru»."""
+    return [p for p in re.split(r"[;,\s]+", value or "") if p]
+
+
+# Бесплатная и провайдерская почта: адрес на таком домене ничего не говорит о сайте заведения.
+# Почта на своём домене (info@cafe-romashka.ru) почти всегда значит, что сайт на этом домене тоже есть.
+FREE_MAIL = {
+    "gmail.com", "googlemail.com", "mail.ru", "bk.ru", "list.ru", "inbox.ru", "internet.ru", "xmail.ru", "mail.ua",
+    "yandex.ru", "yandex.com", "yandex.by", "yandex.kz", "yandex.ua", "ya.ru", "narod.ru", "rambler.ru", "ro.ru",
+    "lenta.ru", "autorambler.ru", "myrambler.ru", "rambler.ua", "icloud.com", "me.com", "mac.com", "outlook.com",
+    "outlook.ru", "hotmail.com", "live.com", "live.ru", "msn.com", "yahoo.com", "ymail.com", "rocketmail.com",
+    "aol.com", "proton.me", "protonmail.com", "pm.me", "tuta.io", "tutanota.com", "tutamail.com", "gmx.com",
+    "gmx.net", "gmx.de", "mail.com", "zoho.com", "ngs.ru", "e1.ru", "ukr.net", "i.ua", "meta.ua", "bigmir.net",
+    "qip.ru", "pochta.ru", "hotbox.ru", "nm.ru", "km.ru", "front.ru", "land.ru", "fromru.com", "newmail.ru",
+    "inbox.lv", "tut.by", "sibmail.com", "rbcmail.ru", "mailru.com", "atlas.ru", "id.ru", "bigmir.ua",
+}
+
+
+# Домены второго уровня, на которых регистрируют сайты организаций: company.msk.ru — свой домен, а не ящик провайдера
+GEO_SLD = {"msk.ru", "spb.ru", "com.ru", "org.ru", "net.ru", "pp.ru", "msk.su", "spb.su"}
+
+
+def email_site(email):
+    """
+    Сайт по домену почты: info@ortob.ru -> https://ortob.ru. Бесплатная почта, соцсети и справочники -> None.
+    Домены третьего уровня (kurgan.isp.ru, mail.ur.ru) — обычно ящики у провайдера, кроме company.msk.ru и подобных.
+    """
+    dom = (email or "").rsplit("@", 1)[-1].strip().lower().rstrip(".")
+    if "@" not in (email or "") or "." not in dom or _matches(dom, FREE_MAIL):
+        return None
+    labels = dom.split(".")
+    if len(labels) > 3 or (len(labels) == 3 and ".".join(labels[1:]) not in GEO_SLD):
+        return None
+    kind, host = classify_url(dom)
+    return f"https://{host}" if kind == "real" else None
+
+
+# Домен прямо в названии: «Exist.ru», «RBT.ru», «Зоооптторг.рф». Латинский домен — латинские метки, «.рф» — кириллические.
+_NAME_DOMAIN = re.compile(
+    r"(?<![\w.@-])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:ru|su|com|net|org|pro|shop|store|online|info|biz|io|me|moscow|spb)"
+    r"|(?:[а-яё0-9](?:[а-яё0-9-]*[а-яё0-9])?\.)+рф)(?![\w.-])",
+    re.I,
+)
+
+
+def name_site(name):
+    """Сайт по домену в названии заведения или None."""
+    m = _NAME_DOMAIN.search(name or "")
+    if not m:
+        return None
+    kind, host = classify_url(m.group(1).lower())
+    return f"https://{host}" if kind == "real" else None
 
 
 # ---------------------------------------------------------------- скоринг и услуги
