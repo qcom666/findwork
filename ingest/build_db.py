@@ -274,7 +274,8 @@ def finalize(recs):
         r["_emails"] = uniq(e.strip().lower() for e in r["emails"] if e and "@" in e)
         r["_reals"], r["_builders"], r["_socials"] = site_links(r)
 
-    found = infer_sites(recs)
+    # Второй проход: сайт, найденный по почте или названию, доходит до филиалов и дублей того же заведения
+    found = infer_sites(recs) + infer_sites(recs)
     print(f"  сайт найден по косвенным признакам у {sum(found.values())}: {dict(found)}", flush=True)
 
     out = []
