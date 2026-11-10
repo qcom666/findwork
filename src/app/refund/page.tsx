@@ -4,7 +4,7 @@ import { LEGAL_DATE, LEGAL_VERSION } from "@/lib/legal";
 import { TRIAL, fmtRub } from "@/lib/plans";
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Оплата и возврат", description: "Как проходит оплата кредитов Lidomap и когда можно вернуть деньги." };
+export const metadata = { title: "Оплата и возврат", description: "Как проходит оплата кредитов Lidomap и когда можно вернуть деньги.", alternates: { canonical: "/refund" } };
 
 export const dynamic = "force-dynamic";
 

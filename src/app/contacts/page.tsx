@@ -2,7 +2,7 @@ import Link from "next/link";
 import { baseUrl } from "@/lib/brand";
 import { seller } from "@/lib/seller";
 
-export const metadata = { title: "Контакты и реквизиты", description: "Как связаться с Lidomap и реквизиты продавца." };
+export const metadata = { title: "Контакты и реквизиты", description: "Как связаться с Lidomap и реквизиты продавца.", alternates: { canonical: "/contacts" } };
 
 export const dynamic = "force-dynamic";
 

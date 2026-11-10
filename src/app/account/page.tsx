@@ -23,7 +23,7 @@ import { telegramBotUsername, telegramConfigured } from "@/lib/telegram";
 import { siteUrl } from "@/lib/site";
 import { getReferralInfo } from "@/lib/users";
 
-export const metadata = { title: "Аккаунт" };
+export const metadata = { title: "Аккаунт", robots: { index: false, follow: false } };
 
 const STATUS: Record<string, string> = { pending: "ждёт оплаты", succeeded: "оплачен", canceled: "отменён", failed: "ошибка" };
 const REASON: Record<string, string> = { signup_bonus: "Бонус за регистрацию", purchase: "Пополнение", subscription: "Кредиты по подписке", exclusive: "Эксклюзив на заведение", report: "Отчёт для клиента", account_deleted: "Аккаунт удалён", unlock: "Открыт лид", promo: "Промокод", referral: "Награда за приглашённого", admin: "Начисление от поддержки" };

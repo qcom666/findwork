@@ -5,7 +5,7 @@ import { SIGNUP_BONUS } from "@/lib/credits";
 import { safeNext } from "@/lib/nav";
 import { telegramBotUsername, telegramConfigured } from "@/lib/telegram";
 
-export const metadata = { title: "Вход" };
+export const metadata = { title: "Вход", robots: { index: false, follow: false } };
 
 export default async function Login({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const next = safeNext((await searchParams).next);

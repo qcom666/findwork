@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { PricingSwitcher } from "@/components/PricingSwitcher";
 import { RadarBackground } from "@/components/RadarBackground";
 import { aiPitches, pitchFeature } from "@/lib/ai";
@@ -14,6 +15,8 @@ import { SERVICE_SHORT, plural } from "@/lib/format";
 import { PLANS, planPerLead } from "@/lib/plans";
 import { getNiches, getStats, type Option, type Stats } from "@/lib/search";
 import { getAllCities, type CityInfo } from "@/lib/seo";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const STEPS = [
   { n: "1", title: "Выберите, что вы делаете", text: "Сайты, QR-меню, онлайн-запись, соцсети, логотипы. Каталог сразу сужается до подходящих заведений." },

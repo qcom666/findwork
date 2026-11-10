@@ -9,7 +9,7 @@ import { SITE_LABEL, formatPhone, plural } from "@/lib/format";
 import { getPitches } from "@/lib/pitch-store";
 import { SERVICE_IDS, getLabels, getLeadsUnlocked } from "@/lib/search";
 
-export const metadata = { title: "Мои лиды" };
+export const metadata = { title: "Мои лиды", robots: { index: false, follow: false } };
 
 const LIMIT = 100;
 const TONE: Record<string, string> = {

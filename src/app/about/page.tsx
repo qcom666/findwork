@@ -1,4 +1,4 @@
-export const metadata = { title: "О данных" };
+export const metadata = { title: "О данных", alternates: { canonical: "/about" } };
 
 export default function About() {
   return (

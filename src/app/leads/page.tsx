@@ -14,6 +14,7 @@ import {
 export const metadata: Metadata = {
   title: "Каталог лидов",
   description: "Заведения России без сайта: фильтры по городу, нише и услуге, оценка лида и проверка сайта.",
+  alternates: { canonical: "/leads" },
 };
 
 type SP = Promise<Record<string, string | string[] | undefined>>;

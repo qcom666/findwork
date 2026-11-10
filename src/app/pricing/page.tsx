@@ -18,6 +18,7 @@ import { getSubscriptions } from "@/lib/subscriptions";
 export const metadata = {
   title: "Тарифы и оплата",
   description: "Подписка или разовые кредиты на контакты заведений. Кредиты не сгорают, неиспользованные возвращаем.",
+  alternates: { canonical: "/pricing" },
 };
 
 const day = (s: number) => new Date(s * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });

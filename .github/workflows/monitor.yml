@@ -1,0 +1,28 @@
+name: Проверка сайта
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: true
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Страницы и базы
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --max-time 20 https://lidomap.ru/api/health | grep -q '"status":"ok"'
+          for path in / /leads /pricing /robots.txt /sitemap.xml; do
+            curl --fail --silent --show-error --retry 2 --max-time 20 --output /dev/null "https://lidomap.ru${path}"
+          done
+      - name: Сертификат действует ещё минимум 14 дней
+        run: echo | openssl s_client -servername lidomap.ru -connect lidomap.ru:443 2>/dev/null | openssl x509 -checkend 1209600 -noout

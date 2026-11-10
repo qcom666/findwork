@@ -30,7 +30,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@libsql/client", "libsql"],
   poweredByHeader: false,
   async redirects() {
-    return redirectsToMainHost();
+    return [
+      ...redirectsToMainHost(),
+      { source: "/catalog", destination: "/leads", permanent: true },
+    ];
   },
   async rewrites() {
     return { beforeFiles: forwardWebhooks(), afterFiles: [], fallback: [] };

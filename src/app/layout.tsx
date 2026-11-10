@@ -21,6 +21,7 @@ export const metadata: Metadata = {
   title: { default: "Lidomap — клиенты, которым нужны ваши услуги", template: "%s — Lidomap" },
   description: DESCRIPTION,
   openGraph: { title: "Lidomap", description: DESCRIPTION, siteName: "Lidomap", locale: "ru_RU", type: "website" },
+  twitter: { card: "summary_large_image", title: "Lidomap", description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {

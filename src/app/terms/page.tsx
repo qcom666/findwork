@@ -1,7 +1,7 @@
 import { LegalDoc } from "@/components/LegalDoc";
 import { offerSections } from "@/lib/legal";
 
-export const metadata = { title: "Публичная оферта", description: "Условия оказания услуг сервиса Lidomap: кредиты, подписка, оплата и возврат." };
+export const metadata = { title: "Публичная оферта", description: "Условия оказания услуг сервиса Lidomap: кредиты, подписка, оплата и возврат.", alternates: { canonical: "/terms" } };
 
 // Реквизиты и цены читаются из окружения и кода при запросе.
 export const dynamic = "force-dynamic";

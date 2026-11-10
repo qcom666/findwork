@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ru.lidomap.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/macbook/YaFind/scripts/pull-backup.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/macbook/Library/Logs/lidomap-backup.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/macbook/Library/Logs/lidomap-backup.error.log</string>
+</dict>
+</plist>

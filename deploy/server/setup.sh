@@ -14,7 +14,7 @@ if [ "$(/usr/local/bin/node -v 2>/dev/null)" != "$NODE" ]; then
   for b in node npm npx; do ln -sf "/opt/node/bin/$b" "/usr/local/bin/$b"; done
 fi
 
-DEBIAN_FRONTEND=noninteractive apt-get install -yq sqlite3 zstd >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -yq sqlite3 zstd ufw >/dev/null
 
 # К Telegram сервер ходит через копию на Vercel (api.telegram.org из России недоступен). Один из адресов Vercel
 # (64.29.17.67) отсюда не отвечает, поэтому имя закрепляем за рабочими адресами: Vercel отдаёт проект с любого своего адреса.
@@ -32,11 +32,25 @@ fi
 id lidomap >/dev/null 2>&1 || useradd --system --create-home --home-dir /home/lidomap --shell /usr/sbin/nologin lidomap
 mkdir -p /srv/lidomap/releases /srv/lidomap/bin /var/lib/lidomap /var/backups/lidomap /etc/lidomap
 chown lidomap:lidomap /srv/lidomap/releases /var/lib/lidomap
+chmod 750 /var/lib/lidomap
 chmod 700 /var/backups/lidomap
+find /var/lib/lidomap -maxdepth 1 -type f -name 'app.db*' -exec chmod 600 {} +
+find /var/backups/lidomap -maxdepth 1 -type f -exec chmod 600 {} +
 if [ ! -f /etc/lidomap/env ]; then install -m 640 -g lidomap /dev/null /etc/lidomap/env; fi
 
 install -m 755 release.sh backup.sh import-leads.sh /srv/lidomap/bin/
 install -m 644 lidomap.service lidomap-backup.service lidomap-backup.timer lidomap-autorenew.service lidomap-autorenew.timer /etc/systemd/system/
+rm -f /etc/ssh/sshd_config.d/99-lidomap-hardening.conf
+install -m 644 sshd-lidomap.conf /etc/ssh/sshd_config.d/00-lidomap-hardening.conf
+sshd -t
+systemctl reload ssh
+
+# Снаружи нужны только SSH и веб-сайт. SSH принимает только ключи.
+ufw allow OpenSSH >/dev/null
+ufw allow 80/tcp >/dev/null
+ufw allow 443/tcp >/dev/null
+ufw --force enable >/dev/null
+
 systemctl daemon-reload
 systemctl enable lidomap.service >/dev/null
 systemctl enable --now lidomap-backup.timer >/dev/null

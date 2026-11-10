@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ResetForm } from "@/components/ResetForm";
 
-export const metadata = { title: "Новый пароль", robots: { index: false } };
+export const metadata = { title: "Новый пароль", robots: { index: false, follow: false } };
 
 export default async function Reset({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const t = (await searchParams).token;
