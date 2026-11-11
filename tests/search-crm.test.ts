@@ -183,6 +183,19 @@ describe("статусы и заметки", () => {
     assert.deepEqual(await listUnlockedIdsByStatus(1, "replied", 10), ["a"]);
     assert.deepEqual((await listUnlockedIdsByStatus(1, "", 10)).sort(), ["a", "b"]);
   });
+  it("отказ и отметка «сайт не нужен» скрывают заведение только из каталога этого пользователя", async () => {
+    await saveCrm(1, "a", { status: "lost" });
+    assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
+    assert.equal((await searchLeads(parseParams({}), 1)).total, 3);
+    assert.equal((await searchLeads(parseParams({}), 2)).leads.some((l) => l.id === "a"), true);
+    assert.equal((await searchLeads(parseParams({}))).leads.some((l) => l.id === "a"), true);
+
+    await saveCrm(1, "a", { status: "no_need" });
+    assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
+
+    await saveCrm(1, "a", { status: "new" });
+    assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), true);
+  });
 });
 
 describe("метрики владельца", () => {

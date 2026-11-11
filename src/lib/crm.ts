@@ -7,11 +7,15 @@ export const STATUSES = [
   { id: "replied", label: "Ответили" },
   { id: "won", label: "Сделка" },
   { id: "lost", label: "Отказ" },
+  { id: "no_need", label: "Сайт не нужен" },
 ] as const;
 
 export type StatusId = (typeof STATUSES)[number]["id"];
 export const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.map((s) => [s.id, s.label]));
 export const isStatus = (v: unknown): v is StatusId => STATUSES.some((s) => s.id === v);
+
+/** Эти исходы больше не должны мешать поиску новых клиентов в общем каталоге. */
+export const HIDDEN_CATALOG_STATUSES: readonly StatusId[] = ["lost", "no_need"];
 
 export const NOTE_MAX = 1000;
 const now = () => Math.floor(Date.now() / 1000);
@@ -66,6 +70,17 @@ export async function listUnlockedIdsByStatus(userId: number, status: StatusId |
           WHERE u.user_id = ? ${status ? "AND coalesce(n.status, 'new') = ?" : ""}
           ORDER BY u.created_at DESC, u.rowid DESC LIMIT ? OFFSET ?`,
     args: status ? [userId, status, limit, offset] : [userId, limit, offset],
+  });
+  return r.rows.map((x) => String(x.lead_id));
+}
+
+/** Заведения, которые пользователь явно исключил из дальнейшего поиска. */
+export async function hiddenCatalogLeadIds(userId: number | null | undefined): Promise<string[]> {
+  if (!userId) return [];
+  const db = await appDb();
+  const r = await db.execute({
+    sql: `SELECT lead_id FROM lead_notes WHERE user_id = ? AND status IN (${HIDDEN_CATALOG_STATUSES.map(() => "?").join(",")}) ORDER BY lead_id`,
+    args: [userId, ...HIDDEN_CATALOG_STATUSES],
   });
   return r.rows.map((x) => String(x.lead_id));
 }

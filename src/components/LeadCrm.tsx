@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Status = { id: string; label: string };
+const HIDDEN_STATUSES = new Set(["lost", "no_need"]);
 
 /** Этап работы с лидом и заметка. Сохраняется сразу, без кнопки. */
 export function LeadCrm({ leadId, statuses, status: initial, note: initialNote }: { leadId: string; statuses: Status[]; status: string; note: string }) {
@@ -65,6 +66,9 @@ export function LeadCrm({ leadId, statuses, status: initial, note: initialNote }
           </button>
         ))}
       </div>
+      {HIDDEN_STATUSES.has(status) && (
+        <p className="mt-3 text-sm text-muted">Заведение скрыто из общего каталога. Оно останется в «Моих лидах», где статус можно изменить.</p>
+      )}
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}

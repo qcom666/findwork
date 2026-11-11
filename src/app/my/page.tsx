@@ -18,6 +18,7 @@ const TONE: Record<string, string> = {
   replied: "bg-warn-soft text-warn",
   won: "bg-good-soft text-good",
   lost: "bg-bad-soft text-bad",
+  no_need: "bg-bad-soft text-bad",
 };
 
 export default async function MyLeads({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

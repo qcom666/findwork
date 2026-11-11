@@ -4,6 +4,7 @@ import { getAllCities } from "./seo";
 import { claimedByOthers } from "./claims";
 import { unlockedAmong } from "./credits";
 import { appDb, leadsDb } from "./db";
+import { hiddenCatalogLeadIds } from "./crm";
 import { maskEmail, maskPhone, socialNames } from "./mask";
 
 export type SiteKind = "none" | "social" | "builder" | "real";
@@ -148,7 +149,7 @@ function ftsQuery(q: string): string | null {
   return tokens.slice(0, 6).map((t) => `"${t}"*`).join(" ");
 }
 
-function where(p: Params, niches: string[] = []): { sql: string; args: (string | number)[] } {
+function where(p: Params, niches: string[] = [], hiddenIds: string[] = []): { sql: string; args: (string | number)[] } {
   const w: string[] = [];
   const a: (string | number)[] = [];
   if (p.city) { w.push("p.city = ?"); a.push(p.city); }
@@ -164,6 +165,10 @@ function where(p: Params, niches: string[] = []): { sql: string; args: (string |
   if (p.email) w.push("p.has_email = 1");
   if (p.social) w.push("p.has_social = 1");
   if (!p.chains) w.push("p.is_chain = 0");
+  if (hiddenIds.length) {
+    w.push(`p.id NOT IN (${hiddenIds.map(() => "?").join(",")})`);
+    a.push(...hiddenIds);
+  }
   const fts = p.q ? ftsQuery(p.q) : null;
   if (fts) {
     // Слово ищем и в названиях, и среди подходящих ниш: «вывески» найдёт и «Вывески Плюс», и всю нишу рекламы.
@@ -195,10 +200,10 @@ async function fastTotal(p: Params): Promise<number | null> {
 /** Дальше этого числа точно считать незачем: так «непопулярные» сочетания фильтров не заставляют обходить весь каталог. */
 const countCap = () => Number(process.env.COUNT_CAP) || 10_000;
 
-async function totalFor(p: Params, sql: string, args: (string | number)[]): Promise<{ total: number; capped: boolean }> {
+async function totalFor(p: Params, sql: string, args: (string | number)[], hasHidden: boolean): Promise<{ total: number; capped: boolean }> {
   // Число найденных не меняется между сборками базы, поэтому листание страниц не пересчитывает его заново.
   return cached(`total:${sql}:${JSON.stringify(args)}`, 10 * 60 * 1000, async () => {
-    const fast = await fastTotal(p);
+    const fast = hasHidden ? null : await fastTotal(p);
     if (fast !== null) return { total: fast, capped: false };
     const cap = countCap();
     const r = await leadsDb().execute({
@@ -221,10 +226,13 @@ async function closedLeads(userId: number | null | undefined, ids: string[]): Pr
 
 export async function searchLeads(p: Params, userId?: number | null): Promise<{ leads: Lead[]; total: number; capped: boolean; matchedNiches: string[] }> {
   const db = leadsDb();
-  const matchedNiches = p.q ? matchNiches(p.q, await getNiches()) : [];
-  const { sql, args } = where(p, matchedNiches);
+  const [matchedNiches, hiddenIds] = await Promise.all([
+    p.q ? matchNiches(p.q, await getNiches()) : [],
+    hiddenCatalogLeadIds(userId),
+  ]);
+  const { sql, args } = where(p, matchedNiches, hiddenIds);
   const [count, page] = await Promise.all([
-    totalFor(p, sql, args),
+    totalFor(p, sql, args, hiddenIds.length > 0),
     db.execute({
       sql: `SELECT p.* FROM places p ${sql} ORDER BY ${p.sort === "name" ? "p.name" : "p.score DESC"}, p.rowid LIMIT ? OFFSET ?`,
       args: [...args, PAGE_SIZE, (p.page - 1) * PAGE_SIZE],
