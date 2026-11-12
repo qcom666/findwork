@@ -19,5 +19,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Тесты
         run: npm test
+      - name: Качество каталога
+        run: python3 -m unittest discover -s ingest -p 'test_*.py'
       - name: Сборка
         run: npm run build

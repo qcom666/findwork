@@ -18,8 +18,8 @@ from pathlib import Path
 
 import duckdb
 
-from common import ru_city
-from osm import AMENITY, KEYS, LEISURE, TOURISM, UA, WEBSITE_KEYS, first, joined
+from common import inactive_osm, ru_city
+from osm import AMENITY, KEYS, LEISURE, LIFECYCLE_PREFIXES, TOURISM, UA, WEBSITE_KEYS, first, joined, osm_key_for
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -58,7 +58,7 @@ def record(feature: dict):
     pos = centroid(feature.get("geometry") or {})
     if not name or not pos:
         return None
-    osm_key = next((f"{k}={t[k]}" for k in KEYS if k in t), None)
+    osm_key = osm_key_for(t)
     street, house = t.get("addr:street"), t.get("addr:housenumber")
     return {
         "osm_id": f"{str(t.get('@type', 'n'))[0]}{t.get('@id')}",
@@ -77,6 +77,7 @@ def record(feature: dict):
         "address": ", ".join(x for x in [street, house] if x) or None,
         "brand": t.get("brand"),
         "brand_wikidata": t.get("brand:wikidata"),
+        "inactive": inactive_osm(t),
         # Для всей страны города по плиткам нет: берём addr:city, а пустой build_db.py заполнит ближайшим городом.
         "query_city": ru_city(t.get("addr:city").strip()) if t.get("addr:city") else None,
     }
@@ -103,6 +104,7 @@ def main():
         "nwr/amenity=" + AMENITY.replace("|", ","),
         "nwr/tourism=" + TOURISM.replace("|", ","),
         "nwr/leisure=" + LEISURE.replace("|", ","),
+        *(f"nwr/{prefix}:{key}" for prefix in LIFECYCLE_PREFIXES for key in KEYS),
         "-o", str(pois),
     )
     print("Считаю координаты (osmium export)...", flush=True)

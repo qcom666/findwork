@@ -157,7 +157,7 @@ function where(p: Params, niches: string[] = [], hiddenIds: string[] = []): { sq
   if (p.service) { w.push("(',' || p.services || ',') LIKE ?"); a.push(`%,${p.service},%`); }
   if (p.minScore) { w.push("p.score >= ?"); a.push(p.minScore); }
   switch (p.site) {
-    case "need": w.push("p.site_kind IN ('none','social','builder')"); break;
+    case "need": w.push("p.site_kind IN ('none','social')"); break;
     case "any": break;
     default: w.push("p.site_kind = ?"); a.push(p.site);
   }

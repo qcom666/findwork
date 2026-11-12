@@ -1,5 +1,6 @@
 """Общие функции для сборки базы: нормализация названий, телефонов, ссылок и скоринг лидов."""
 import re
+from datetime import date
 from urllib.parse import urlparse
 
 # ---------------------------------------------------------------- названия
@@ -14,6 +15,39 @@ def norm_name(name: str) -> str:
     s = _LEGAL.sub(" ", s)
     s = _PUNCT.sub(" ", s)
     return re.sub(r"\s+", " ", s).strip()
+
+
+# Явные пометки источника о том, что заведение больше не работает. Не используем прилагательные
+# «закрытый/закрытая»: это может быть частью настоящего названия («Закрытый клуб»).
+_INACTIVE_NAME = re.compile(
+    r"(?:^|[\s(,;—-])(закрыт(?:а|о|ы)?|не\s+работает|временно\s+не\s+работает|"
+    r"больше\s+не\s+работает|ликвидирован(?:а|о|ы)?|прекратил[аои]?\s+работу|closed)(?:$|[\s),;.!—-])",
+    re.I,
+)
+
+
+def inactive_name(name: str) -> bool:
+    """Есть ли в названии явная служебная пометка о закрытии."""
+    return bool(_INACTIVE_NAME.search(name or ""))
+
+
+def inactive_osm(tags: dict) -> bool:
+    """Помечен ли объект OSM закрытым, заброшенным, удалённым или ещё строящимся."""
+    def on(value) -> bool:
+        return str(value or "").strip().lower() not in ("", "no", "false", "0")
+
+    if inactive_name(tags.get("name", "")):
+        return True
+    if any(on(tags.get(k)) for k in ("disused", "abandoned", "demolished", "removed", "razed", "construction")):
+        return True
+    end_date = str(tags.get("end_date") or "").strip()
+    year = re.match(r"^(\d{4})", end_date)
+    if year and int(year.group(1)) <= date.today().year:
+        return True
+    lifecycle = ("disused:", "abandoned:", "demolished:", "removed:", "razed:", "was:", "construction:")
+    if any(k.startswith(lifecycle) and on(v) for k, v in tags.items()):
+        return True
+    return str(tags.get("opening_hours") or "").strip().lower() in ("closed", "off", "no")
 
 
 # ---------------------------------------------------------------- телефоны

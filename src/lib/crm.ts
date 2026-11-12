@@ -8,6 +8,8 @@ export const STATUSES = [
   { id: "won", label: "Сделка" },
   { id: "lost", label: "Отказ" },
   { id: "no_need", label: "Сайт не нужен" },
+  { id: "has_site", label: "Уже есть сайт" },
+  { id: "closed", label: "Закрыто" },
 ] as const;
 
 export type StatusId = (typeof STATUSES)[number]["id"];
@@ -15,7 +17,7 @@ export const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.
 export const isStatus = (v: unknown): v is StatusId => STATUSES.some((s) => s.id === v);
 
 /** Эти исходы больше не должны мешать поиску новых клиентов в общем каталоге. */
-export const HIDDEN_CATALOG_STATUSES: readonly StatusId[] = ["lost", "no_need"];
+export const HIDDEN_CATALOG_STATUSES: readonly StatusId[] = ["lost", "no_need", "has_site", "closed"];
 
 export const NOTE_MAX = 1000;
 const now = () => Math.floor(Date.now() / 1000);

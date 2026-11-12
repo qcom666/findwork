@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type Status = { id: string; label: string };
-const HIDDEN_STATUSES = new Set(["lost", "no_need"]);
+const HIDDEN_STATUSES = new Set(["lost", "no_need", "has_site", "closed"]);
 
 /** Этап работы с лидом и заметка. Сохраняется сразу, без кнопки. */
 export function LeadCrm({ leadId, statuses, status: initial, note: initialNote }: { leadId: string; statuses: Status[]; status: string; note: string }) {

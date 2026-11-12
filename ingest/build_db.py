@@ -15,8 +15,8 @@ from pathlib import Path
 import duckdb
 from rapidfuzz import fuzz
 
-from common import (SERVICES, classify_url, clean_url, domain_of, email_site, lead_score, lead_services, name_site, norm_name,
-                    norm_phone, ru_city, split_urls)
+from common import (SERVICES, classify_url, clean_url, domain_of, email_site, inactive_name, lead_score, lead_services,
+                    name_site, norm_name, norm_phone, ru_city, split_urls)
 from niches import NICHES, is_public_body, niche_for_osm, niche_for_overture
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,7 +62,7 @@ def load_overture():
     con.executemany("INSERT INTO cat_niche VALUES (?, ?)", [(k, v) for k, v in mapping.items() if v])
     cur = con.execute(
         f"""SELECT o.*, m.niche FROM read_parquet('{OV}') o JOIN cat_niche m USING (category)
-            WHERE coalesce(o.operating_status, 'open') <> 'permanently_closed'"""
+            WHERE o.operating_status IS NULL OR o.operating_status = 'open'"""
     )
     cols = [d[0] for d in cur.description]
     recs = []
@@ -72,7 +72,7 @@ def load_overture():
             break
         for row in chunk:
             r = dict(zip(cols, row))
-            if is_public_body(r["name"]):
+            if is_public_body(r["name"]) or inactive_name(r["name"]):
                 continue
             recs.append(
                 dict(
@@ -107,7 +107,7 @@ def load_osm():
                 phones=[r["phone"]] if r["phone"] else [], emails=[r["email"]] if r["email"] else [],
                 websites=[r["website"]] if r["website"] else [],
                 socials=[s for s in socials if s and "." in s], brand_wikidata=r["brand_wikidata"],
-                confidence=None, sources={"osm"},
+                confidence=None, sources={"osm"}, inactive=bool(r.get("inactive")),
             )
         )
     return recs
@@ -168,12 +168,16 @@ def merge_osm(ov, osm):
             if hit:
                 break
         if hit:
+            if o.get("inactive"):
+                hit["_inactive"] = True
+                merged += 1
+                continue
             hit["phones"] += o["phones"]; hit["emails"] += o["emails"]
             hit["websites"] += o["websites"]; hit["socials"] += o["socials"]
             hit["sources"].add("osm")
             hit["address"] = hit["address"] or o["address"]
             merged += 1
-        else:
+        elif not o.get("inactive"):
             added.append(o)
     return merged, added
 
@@ -266,6 +270,10 @@ def infer_sites(recs):
 
 
 def finalize(recs):
+    before = len(recs)
+    recs = [r for r in recs if not r.get("_inactive") and not inactive_name(r["name"])]
+    if before != len(recs):
+        print(f"  закрытых заведений исключено: {before - len(recs)}", flush=True)
     freq = Counter()
     for r in recs:
         r["_n"] = r.get("_n") or norm_name(r["name"])
@@ -328,12 +336,12 @@ def write_db(rows, meta):
     con.executemany("INSERT INTO places VALUES (" + ",".join("?" * 23) + ")", rows)
     con.executemany("INSERT INTO services VALUES (?,?)", list(SERVICES.items()))
     con.executemany(
-        "INSERT INTO niches SELECT ?, ?, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) "
+        "INSERT INTO niches SELECT ?, ?, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) "
         "FROM places WHERE niche = ?",
         [(k, v["label"], k) for k, v in NICHES.items()],
     )
     con.execute(
-        "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) "
+        "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) "
         "FROM places WHERE city IS NOT NULL GROUP BY city HAVING count(*) >= 30"
     )
     con.executemany("INSERT INTO meta VALUES (?,?)", list(meta.items()))

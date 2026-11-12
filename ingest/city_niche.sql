@@ -5,6 +5,6 @@ DROP TABLE IF EXISTS city_niche;
 CREATE TABLE city_niche (city TEXT NOT NULL, niche TEXT NOT NULL, n_need INTEGER NOT NULL, PRIMARY KEY (city, niche)) WITHOUT ROWID;
 INSERT INTO city_niche
   SELECT city, niche, count(*) FROM places
-  WHERE city IS NOT NULL AND site_kind IN ('none', 'social', 'builder') AND is_chain = 0
+  WHERE city IS NOT NULL AND site_kind IN ('none', 'social') AND is_chain = 0
   GROUP BY city, niche;
 CREATE INDEX ix_city_niche_niche ON city_niche(niche, n_need DESC);

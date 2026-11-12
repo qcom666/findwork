@@ -18,6 +18,6 @@ keys = ", ".join(q(k) for k in CITY_RU)
 print(f"UPDATE places SET city = CASE city {whens} END WHERE city IN ({keys});")
 print("DELETE FROM cities;")
 print(
-    "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) "
+    "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) "
     "FROM places WHERE city IS NOT NULL GROUP BY city HAVING count(*) >= 30;"
 )

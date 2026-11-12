@@ -17,7 +17,7 @@ export function citySlug(name: string): string {
 }
 
 const TTL = 10 * 60 * 1000;
-const NEED = "site_kind IN ('none','social','builder') AND is_chain = 0";
+const NEED = "site_kind IN ('none','social') AND is_chain = 0";
 
 export type CityInfo = { name: string; slug: string; n: number; nNeed: number };
 

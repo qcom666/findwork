@@ -49,8 +49,8 @@ before(async () => {
   }
   await db.execute("INSERT INTO places_fts(rowid, name) SELECT rowid, name FROM places");
   // справочники так же, как их считает ingest/build_db.py
-  await db.execute("INSERT INTO niches SELECT niche, niche, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) FROM places GROUP BY niche");
-  await db.execute("INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) FROM places GROUP BY city");
+  await db.execute("INSERT INTO niches SELECT niche, niche, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) FROM places GROUP BY niche");
+  await db.execute("INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) FROM places GROUP BY city");
   appDir = mkdtempSync(path.join(tmpdir(), "fw-crm-"));
   await __resetAppDbForTests("file:" + path.join(appDir, "app.db"));
 });
@@ -72,18 +72,18 @@ describe("параметры поиска", () => {
 
 describe("фильтры каталога", () => {
   it("по умолчанию: нужен сайт, сети скрыты, сначала горячие", async () => {
-    assert.deepEqual(await ids({}), ["a", "e", "b", "c"]);
+    assert.deepEqual(await ids({}), ["a", "b", "c"]);
   });
   it("по услуге (специализации)", async () => {
-    assert.deepEqual(await ids({ service: "booking" }), ["a", "e", "c"]);
+    assert.deepEqual(await ids({ service: "booking" }), ["a", "c"]);
     assert.deepEqual(await ids({ service: "qr_menu" }), ["b"]);
     assert.deepEqual(await ids({ service: "se" }), await ids({}), "неизвестная услуга игнорируется, а не ищется по подстроке");
   });
   it("по нише, городу, оценке и наличию контактов", async () => {
     assert.deepEqual(await ids({ niche: "medical" }), ["a"]);
     assert.deepEqual(await ids({ city: "Москва" }), ["c"]);
-    assert.deepEqual(await ids({ min: "70" }), ["a", "e"]);
-    assert.deepEqual(await ids({ phone: "1" }), ["a", "e", "b"]);
+    assert.deepEqual(await ids({ min: "70" }), ["a"]);
+    assert.deepEqual(await ids({ phone: "1" }), ["a", "b"]);
     assert.deepEqual(await ids({ social: "1" }), ["b"]);
   });
   it("статус сайта и сети", async () => {
@@ -92,7 +92,7 @@ describe("фильтры каталога", () => {
     assert.deepEqual(await ids({ site: "any", chains: "1" }), ["f", "a", "e", "b", "c", "d"]);
   });
   it("сортировка по названию и поиск по началу слова", async () => {
-    assert.deepEqual(await ids({ sort: "name" }), ["c", "e", "b", "a"]);
+    assert.deepEqual(await ids({ sort: "name" }), ["c", "b", "a"]);
     assert.deepEqual(await ids({ q: "стом" }), ["a"]);
     assert.deepEqual(await ids({ q: "кофе" }), ["b"]);
   });
@@ -108,14 +108,14 @@ describe("фильтры каталога", () => {
   });
   it("кавычки и спецсимволы в запросе не ломают поиск", async () => {
     assert.deepEqual(await ids({ q: '"; DROP TABLE places; --' }), []);
-    assert.equal((await ids({})).length, 4);
+    assert.equal((await ids({})).length, 3);
   });
 });
 
 describe("подсчёт найденных", () => {
   it("быстрый подсчёт по справочникам совпадает с честным count(*)", async () => {
     const real = createClient({ url: process.env.LEADS_DB_URL! });
-    const count = async (where: string) => Number((await real.execute(`SELECT count(*) AS n FROM places WHERE site_kind IN ('none','social','builder') AND is_chain = 0 ${where}`)).rows[0].n);
+    const count = async (where: string) => Number((await real.execute(`SELECT count(*) AS n FROM places WHERE site_kind IN ('none','social') AND is_chain = 0 ${where}`)).rows[0].n);
     assert.equal((await searchLeads(parseParams({}))).total, await count(""));
     assert.equal((await searchLeads(parseParams({ city: "Казань" }))).total, await count("AND city = 'Казань'"));
     assert.equal((await searchLeads(parseParams({ niche: "medical" }))).total, await count("AND niche = 'medical'"));
@@ -127,13 +127,13 @@ describe("подсчёт найденных", () => {
 describe("предел подсчёта", () => {
   it("если найденных больше предела, число обрезается и помечается как приблизительное", async () => {
     clearCache(); // подсчёты кэшируются, а предел в этом тесте меняется
-    process.env.COUNT_CAP = "2";
+    process.env.COUNT_CAP = "1";
     try {
       const r = await searchLeads(parseParams({ phone: "1", q: "" }));
-      assert.deepEqual([r.total, r.capped], [2, true]);
-      process.env.COUNT_CAP = "3";
+      assert.deepEqual([r.total, r.capped], [1, true]);
+      process.env.COUNT_CAP = "2";
       const exact = await searchLeads(parseParams({ phone: "1", min: "40" }));
-      assert.deepEqual([exact.total, exact.capped], [3, false], "ровно по пределу: число точное");
+      assert.deepEqual([exact.total, exact.capped], [2, false], "ровно по пределу: число точное");
     } finally {
       delete process.env.COUNT_CAP;
       clearCache();
@@ -183,14 +183,20 @@ describe("статусы и заметки", () => {
     assert.deepEqual(await listUnlockedIdsByStatus(1, "replied", 10), ["a"]);
     assert.deepEqual((await listUnlockedIdsByStatus(1, "", 10)).sort(), ["a", "b"]);
   });
-  it("отказ и отметка «сайт не нужен» скрывают заведение только из каталога этого пользователя", async () => {
+  it("отказы и признаки плохих данных скрывают заведение только из каталога этого пользователя", async () => {
     await saveCrm(1, "a", { status: "lost" });
     assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
-    assert.equal((await searchLeads(parseParams({}), 1)).total, 3);
+    assert.equal((await searchLeads(parseParams({}), 1)).total, 2);
     assert.equal((await searchLeads(parseParams({}), 2)).leads.some((l) => l.id === "a"), true);
     assert.equal((await searchLeads(parseParams({}))).leads.some((l) => l.id === "a"), true);
 
     await saveCrm(1, "a", { status: "no_need" });
+    assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
+
+    await saveCrm(1, "a", { status: "has_site" });
+    assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
+
+    await saveCrm(1, "a", { status: "closed" });
     assert.equal((await searchLeads(parseParams({}), 1)).leads.some((l) => l.id === "a"), false);
 
     await saveCrm(1, "a", { status: "new" });

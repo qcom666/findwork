@@ -21,6 +21,8 @@ from pathlib import Path
 
 import duckdb
 
+from common import inactive_osm
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 CACHE = DATA / "osm_cache"
@@ -73,6 +75,18 @@ QUERY = """[out:json][timeout:90];
 out center tags;"""
 
 KEYS = ["shop", "amenity", "craft", "office", "tourism", "leisure", "healthcare"]
+LIFECYCLE_PREFIXES = ("disused", "abandoned", "demolished", "removed", "razed", "was", "construction")
+
+
+def osm_key_for(tags):
+    """Основной тип объекта, включая старый тип у закрытых lifecycle-объектов."""
+    direct = next((f"{k}={tags[k]}" for k in KEYS if k in tags), None)
+    if direct:
+        return direct
+    return next(
+        (f"{k}={tags[f'{prefix}:{k}']}" for prefix in LIFECYCLE_PREFIXES for k in KEYS if f"{prefix}:{k}" in tags),
+        None,
+    )
 
 
 def first(tags, *keys):
@@ -103,7 +117,7 @@ def compact(el):
     lon = el.get("lon") or (el.get("center") or {}).get("lon")
     if lat is None or lon is None or not t.get("name"):
         return None
-    osm_key = next((f"{k}={t[k]}" for k in KEYS if k in t), None)
+    osm_key = osm_key_for(t)
     street = t.get("addr:street")
     house = t.get("addr:housenumber")
     return {
@@ -123,6 +137,7 @@ def compact(el):
         "address": ", ".join(x for x in [street, house] if x) or None,
         "brand": t.get("brand"),
         "brand_wikidata": t.get("brand:wikidata"),
+        "inactive": inactive_osm(t),
     }
 
 

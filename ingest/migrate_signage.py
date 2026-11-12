@@ -65,11 +65,11 @@ def main():
     out.append("DELETE FROM niches WHERE id IN ('ads', 'business');")
     out.append(
         f"INSERT INTO niches(id, label, n, n_need) SELECT niche, CASE niche {labels} END, count(*), "
-        "count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) FROM places WHERE niche IN ('ads', 'business') GROUP BY niche;"
+        "count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) FROM places WHERE niche IN ('ads', 'business') GROUP BY niche;"
     )
     out.append("DELETE FROM cities;")
     out.append(
-        "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind <> 'real' AND is_chain = 0) "
+        "INSERT INTO cities SELECT city, count(*), count(*) FILTER (WHERE site_kind IN ('none','social') AND is_chain = 0) "
         "FROM places WHERE city IS NOT NULL GROUP BY city HAVING count(*) >= 30;"
     )
     out.append("UPDATE meta SET value = CAST((SELECT count(*) FROM places) AS TEXT) WHERE key = 'total';")
